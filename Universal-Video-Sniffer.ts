@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Universal Video Sniffer: Speedster (v8.5.1 Pro Reset Fixed)
+// @name         Universal Video Sniffer: Speedster (v9.7 HDR Dynamic + Info)
 // @namespace    http://tampermonkey.net/
-// @version      8.5.1
-// @description  Ultimate v8.4 + Fix Reset Totale ultra-stabile + HDR Off Auto-Reset.
+// @version      9.7
+// @description  HDR 100% dinamico. Default Level 3 + Dolby Vision + Nitidezza Media. Info Sviluppatore.
 // @author       Carmelo Battiato
 // @match        *://*/*
 // @grant        GM_setClipboard
@@ -15,10 +15,10 @@
 
 (function() {
     'use strict';
-    const VER = "8.5.1";
+    const VER = "9.7";
     const CFG = { ext: /\.(mp4|m3u8|flv|webm|mov|avi|mkv|mpd)(\?|$)/i, ign: /doubleclick|googlead|analytics|adsystem|segment|prebid/i };
     const FOUND = new Set(), ACTIVE = new Set();
-
+    
     GM_addStyle(`
         #uvs-c{position:fixed;top:60px;left:50%;transform:translateX(-50%);width:500px;background:#0f0f0f;color:#ccc;z-index:2147483647;border-radius:8px;box-shadow:0 10px 40px #000;font-family:system-ui,sans-serif;display:none;flex-direction:column;border:1px solid #333;font-size:13px}
         #uvs-h{padding:10px;background:#1a1a1a;border-bottom:1px solid #333;display:flex;justify-content:space-between;font-weight:700;color:#fff}
@@ -38,7 +38,6 @@
 
     document.getElementById('uvs-x').onclick = () => { mainUi.style.display = 'none'; if(FOUND.size > 0) badge.style.display = 'block'; };
     badge.onclick = () => { mainUi.style.display = 'flex'; badge.style.display = 'none'; };
-    document.getElementById('uvs-th').oninput = () => ACTIVE.forEach(c => c.upd && c.upd());
 
     const req = (u, b) => new Promise((ok, no) => GM_xmlhttpRequest({ method: "GET", url: u, responseType: b ? 'arraybuffer' : 'text', onload: r => r.status < 300 ? ok(r.response) : no(r.status), onerror: no }));
     const getTi = () => (document.querySelector('meta[property="og:title"]')?.content || document.title || "Video").replace(/\s[-|]\s?.*/, '').trim();
@@ -100,7 +99,7 @@
         let ti = getTi(), isH = u.includes('.m3u8'), div = document.createElement('div');
         div.className = 'uvs-i';
         div.innerHTML = `<div style="display:flex;justify-content:space-between;font-size:9px"><span style="color:#4db8ff;font-weight:800">${isH ? 'M3U8' : 'VID'}</span><span>${src}</span></div>
-            <div style="font-weight:600;white-space:nowrap;overflow:hidden">${ti}</div><div class="uvs-u">${u}</div><div class="uvs-a"><button class="uvs-b pb">PLAY</button><button class="uvs-b cb">COPY</button><button class="uvs-b ${isH ? 'tb' : 'db'}">${isH ? 'TURBO' : 'SCARICA'}</button></div>
+            <div style="font-weight:600;white-space:nowrap;overflow:hidden">${ti}</div><div class="uvs-u">${u}</div><div class="uvs-a"><button class="uvs-b pb">PLAY</button><button class="uvs-b cb">COPY</button><button class="uvs-b ${isH ? 'tb' : 'db'}">${isH ? 'DOWNLOAD' : 'SCARICA'}</button></div>
             <div class="pw"><div class="sr"><span class="st" style="color:#eee">Wait</span><div style="display:flex;gap:10px;align-items:center"><span class="th" style="font-family:monospace;font-size:11px;color:#aaa"></span><button class="uvs-b psb" style="display:none;background:#f39c12;color:#000">PAUSE</button><button class="uvs-b sb" style="display:none;background:#b71c1c;color:#fff">STOP</button></div></div><div class="bar-c"><div class="bar"></div></div></div>`;
 
         div.querySelector('.pb').onclick = () => openUltimatePlayer(u, ti, isH);
@@ -109,7 +108,8 @@
         if (isH) {
             let tb = div.querySelector('.tb'), sb = div.querySelector('.sb'), pb = div.querySelector('.psb'), ct = { stop: 0, pause: 0 };
             tb.onclick = () => {
-                tb.disabled = 1; div.querySelector('.pw').style.display = 'block';
+                ct.stop = 0; ct.pause = 0; sb.disabled = 0; sb.innerText = "STOP";
+                div.querySelector('.pw').style.display = 'block'; div.querySelector('.bar').style.width = '0%'; div.querySelector('.st').innerText = "Attesa..."; tb.disabled = 1;
                 let gui = { bar: div.querySelector('.bar'), txt: div.querySelector('.st'), th: div.querySelector('.th'), sb, pb };
                 sb.onclick = () => { ct.stop = 1; sb.innerText = "..."; sb.disabled = 1; if(ct.kill) ct.kill(); };
                 pb.onclick = () => { ct.pause = !ct.pause; pb.innerText = ct.pause ? "RESUME" : "PAUSE"; pb.style.background = ct.pause ? "#2ea043" : "#f39c12"; if (!ct.pause && ct.res) ct.res() };
@@ -149,8 +149,6 @@
             select { background:#222; color:#fff; border:1px solid #444; padding:4px; border-radius:4px; font-size:11px; flex:1; outline:none }
             .tit { font-weight:800; margin:15px 0 8px 0; color:#888; border-bottom:1px solid #333; padding-bottom:4px; text-transform:uppercase; font-size:10px; }
             .val-label { width:35px; text-align:right; font-family:monospace; color:#4db8ff; margin-left:5px }
-            .preset-grid { display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
-            .preset-btn { background:#222; border:1px solid #333; color:#ccc; padding:8px; border-radius:6px; cursor:pointer; font-size:11px; text-align:center; transition: 0.2s; }
             button#rst_hard { width:100%; background:#b71c1c; border:none; color:#fff; padding:10px; cursor:pointer; font-weight:bold; font-size:11px; text-transform:uppercase; border-radius: 0 0 12px 12px; }
             .fade-out { opacity: 0 !important; pointer-events: none !important; }
             .resume-prompt { position: absolute; bottom: 80px; left: 20px; background: #2ea043; padding: 10px 15px; border-radius: 8px; z-index: 2147483647 !important; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 15px #000; opacity: 0; transform: translateY(20px); transition: all 0.3s; pointer-events: none; font-weight: 600; }
@@ -170,13 +168,23 @@
             <div class="gear-btn" id="gear">&#9881;</div><div class="skip-btn skip-prev" id="b_prev">⏪</div><div class="skip-btn skip-next" id="b_next">⏩</div><div class="feedback" id="feedback"></div>
             <div class="resume-prompt" id="resume_box"><span id="resume_txt">Riprendere?</span><button style="background:#fff;color:#2ea043;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-weight:bold" id="resume_yes">Sì</button><span style="cursor:pointer;margin-left:8px" id="resume_no">×</span></div>
             <div class="overlay" id="panel">
-                <div class="tabs"><div class="tab active" data-tab="vid">Video</div><div class="tab" data-tab="aud">Audio</div><div class="tab" data-tab="pre">Preset</div><div class="tab" data-tab="inf">Info</div></div>
+                <div class="tabs"><div class="tab active" data-tab="vid">Video</div><div class="tab" data-tab="aud">Audio</div><div class="tab" data-tab="inf">Info</div></div>
                 <div class="panel-content active" id="tab-vid">
-                    <div class="tit">HDR Configuration (Adaptive)</div>
+                    <div class="tit">HDR Engine (100% Dynamic Master)</div>
                     <div class="row"><label>Standard</label><select id="hdr_mode">
-                        <option value="none">Off</option><option value="hdr_std">HDR Standard</option><option value="hdr_10">HDR10 (Static)</option><option value="hdr_plus">HDR10+ (Adaptive)</option><option value="hdr_dv">Dolby Vision (Dyn)</option>
+                        <option value="custom">Custom (Libero)</option>
+                        <option value="hdr_std">HDR Standard (Dyn)</option>
+                        <option value="hdr_10">HDR10 (Dyn)</option>
+                        <option value="hdr_plus">HDR10+ (Global Dyn)</option>
+                        <option value="hdr_dv" selected>Dolby Vision (Granular)</option>
                     </select></div>
-                    <div class="row"><label>Intensità</label><select id="hdr_lv"><option value="1">Livello 1</option><option value="2">Livello 2</option><option value="3">Livello 3</option><option value="4">Livello 4</option><option value="5">Livello 5</option></select></div>
+                    <div class="row"><label>Intensità</label><select id="hdr_lv">
+                        <option value="1">Livello 1 (±10%)</option>
+                        <option value="2">Livello 2 (±20%)</option>
+                        <option value="3" selected>Livello 3 (±30%)</option>
+                        <option value="4">Livello 4 (±40%)</option>
+                        <option value="5">Livello 5 (±50%)</option>
+                    </select></div>
 
                     <div class="tit">Cinema Grading</div>
                     <div class="row"><label>Luce (Gain)</label><input type="range" id="bri" min="0.5" max="1.5" step="0.01" value="1"><span class="val-label" id="lbl_bri">100%</span></div>
@@ -189,147 +197,183 @@
 
                     <div class="tit">Display & Dettaglio</div>
                     <div class="row"><label>Confronto</label><select id="comp_sel"><option value="none">Nessuno</option><option value="orig">Originale</option><option value="hdr_std">HDR Standard</option><option value="hdr_10">HDR10</option><option value="hdr_plus">HDR10+</option><option value="hdr_dv">Dolby Vision</option></select></div>
-                    <div class="row"><label>Nitidezza</label><select id="us_sel"><option value="none">Off</option><option value="sh-low">Bassa</option><option value="sh-soft">Soft</option><option value="sh-med">Media</option><option value="sh-hard">Alta</option><option value="sh-ultra">Ultra</option></select></div>
+                    <div class="row"><label>Nitidezza</label><select id="us_sel">
+                        <option value="none">Off</option><option value="sh-low">Bassa</option><option value="sh-soft">Soft</option><option value="sh-med" selected>Media</option><option value="sh-hard">Alta</option><option value="sh-ultra">Ultra</option>
+                    </select></div>
                     <div class="row"><label>Ambilight</label><label class="switch"><input type="checkbox" id="ambi_chk"><span class="slider"></span></label></div>
                     <div class="row"><label>Formato</label><select id="ar_sel"><option value="contain">Adatta</option><option value="cover">Riempi</option><option value="fill">Stretch</option><option value="scale_1.25">Zoom 125%</option><option value="scale_1.5">Zoom 150%</option></select></div>
                 </div>
                 <div class="panel-content" id="tab-aud">
-                    <div class="tit">Audio Master</div>
-                    <div class="row"><label>Boost</label><input type="range" id="vol" min="0" max="5" step="0.1" value="1"><span id="lbl_vol" class="val-label">100%</span></div>
-                    <div class="row"><label>Night Mode</label><label class="switch"><input type="checkbox" id="night_chk"><span class="slider"></span></label></div>
+                    <div class="tit">Master & Sync</div>
+                    <div class="row"><label>Gain Boost</label><input type="range" id="vol" min="0" max="5" step="0.1" value="1"><span id="lbl_vol" class="val-label">100%</span></div>
                     <div class="row"><label>Sync (ms)</label><input type="range" id="sync" min="0" max="2" step="0.05" value="0"><span id="lbl_sync" class="val-label">0</span></div>
-                </div>
-                <div class="panel-content" id="tab-pre">
-                    <div class="tit">Preset Rapidi</div>
-                    <div class="preset-grid"><div class="preset-btn" data-pre="def">Default</div><div class="preset-btn" data-pre="cine">Cinema</div><div class="preset-btn" data-pre="anime">Anime</div><div class="preset-btn" data-pre="night">Night</div><div class="preset-btn" data-pre="hdr">Ultra HDR</div></div>
+                    <div class="row"><label>Night Mode</label><label class="switch"><input type="checkbox" id="night_chk"><span class="slider"></span></label></div>
+
+                    <div class="tit">Equalizzatore 5 Bande</div>
+                    <div class="row"><label>Bassi (60Hz)</label><input type="range" id="eq_b" min="-12" max="12" step="1" value="0"><span id="lbl_eq_b" class="val-label">0dB</span></div>
+                    <div class="row"><label>M-Bassi (250Hz)</label><input type="range" id="eq_lb" min="-12" max="12" step="1" value="0"><span id="lbl_eq_lb" class="val-label">0dB</span></div>
+                    <div class="row"><label>Medi (1kHz)</label><input type="range" id="eq_m" min="-12" max="12" step="1" value="0"><span id="lbl_eq_m" class="val-label">0dB</span></div>
+                    <div class="row"><label>M-Alti (4kHz)</label><input type="range" id="eq_mh" min="-12" max="12" step="1" value="0"><span id="lbl_eq_mh" class="val-label">0dB</span></div>
+                    <div class="row"><label>Alti (12kHz)</label><input type="range" id="eq_h" min="-12" max="12" step="1" value="0"><span id="lbl_eq_h" class="val-label">0dB</span></div>
                 </div>
                 <div class="panel-content" id="tab-inf">
-                    <div class="tit">Software</div><div class="row"><span>Versione</span><span class="info-val">v${VER}</span></div><div class="row"><span>Sviluppatore</span><span class="info-val" style="font-size:10px">Carmelo Battiato</span></div>
-                    <div class="tit">Metadata Realtime</div><div class="row"><span>MaxCLL (Peak)</span><span class="info-val" id="i_cll">- nits</span></div><div class="row"><span>MaxFALL (Avg)</span><span class="info-val" id="i_fall">- nits</span></div>
-                    <div class="tit">Stream</div><div class="row"><span>Risoluzione</span><span class="info-val" id="i_res">-</span></div><div class="row"><span>Buffer</span><span class="info-val" id="i_buf">0.0s</span></div>
+                    <div class="tit">Software Info</div>
+                    <div class="row"><span>Versione</span><span class="info-val">v${VER} Master</span></div>
+                    <div class="row"><span>Sviluppatore</span><span class="info-val">Carmelo Battiato</span></div>
+                    <div class="row"><span>Email</span><span class="info-val" style="font-size:11px">b84car@yahoo.it</span></div>
+                    
+                    <div class="tit">Metadata Realtime</div>
+                    <div class="row"><span>MaxCLL (Peak)</span><span class="info-val" id="i_cll">- nits</span></div>
+                    <div class="row"><span>MaxFALL (Avg)</span><span class="info-val" id="i_fall">- nits</span></div>
+                    
+                    <div class="tit">Stream Stats</div>
+                    <div class="row"><span>Risoluzione</span><span class="info-val" id="i_res">-</span></div>
+                    <div class="row"><span>Buffer</span><span class="info-val" id="i_buf">0.0s</span></div>
+                    <div class="row"><span>FPS Realtime</span><span class="info-val" id="i_fps">0</span></div>
                 </div>
-                <button id="rst_hard">RESET TUTTO</button>
+                <button id="rst_hard">RESET TOTALE</button>
             </div>
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/hls.js"></script><script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
         <script>
-            const SCAN_RES = 128;
             const v = document.getElementById('p'), vComp = document.getElementById('v_comp'), canvas = document.getElementById('ambilight'), ctx = canvas.getContext('2d');
             const panel = document.getElementById('panel'), gear = document.getElementById('gear');
             const b_prev = document.getElementById('b_prev'), b_next = document.getElementById('b_next'), fb = document.getElementById('feedback');
             const vMainPane = document.getElementById('v_main_pane'), vCompPane = document.getElementById('v_comp_pane');
             const hiddenCanvas = document.createElement('canvas'); const hCtx = hiddenCanvas.getContext('2d', {willReadFrequently:true});
-            let ac, src, gain, delayNode, idleTimer;
+            let ac, src, gain, delayNode, idleTimer, eqFilters = [];
             const storeKey = 'uvs_pos_' + encodeURIComponent("${u}").substring(0, 50);
+
+            let lastFPSUpdate = performance.now();
+            let lastFrameCount = 0;
 
             if(Hls.isSupported() && ${isHls}) {
                 const h = new Hls({maxBufferLength:300, maxMaxBufferLength:600}); h.loadSource("${u}"); h.attachMedia(v);
                 const hc = new Hls(); hc.loadSource("${u}"); hc.attachMedia(vComp);
             } else { v.src = vComp.src = "${u}"; }
-
+            
             const player = new Plyr(v, { autoplay:1, controls:['play-large','play','progress','current-time','mute','volume','settings','pip','fullscreen'], settings:['quality','speed','loop'], fullscreen: { container: '#wrapper' } });
-            v.onplay = () => vComp.play(); v.onpause = () => vComp.pause(); v.onseeking = () => { vComp.currentTime = v.currentTime; };
+            v.onplay = () => vComp.play(); v.onpause = () => vComp.pause(); 
+            v.onseeking = () => { vComp.currentTime = v.currentTime; };
+            v.onseeked = () => { vComp.currentTime = v.currentTime; };
+            setInterval(() => { if(!v.paused && Math.abs(v.currentTime - vComp.currentTime) > 0.25) vComp.currentTime = v.currentTime; }, 500);
+
             v.addEventListener('ready', () => { const pDiv = document.querySelector('.plyr'); if(pDiv) { [gear, b_prev, b_next, fb, panel, document.getElementById('resume_box')].forEach(el => pDiv.appendChild(el)); } });
 
-            const inputs = {
+            const inputs = { 
                 comp: document.getElementById('comp_sel'), hdr: document.getElementById('hdr_mode'), lv: document.getElementById('hdr_lv'),
-                bri: document.getElementById('bri'), sha: document.getElementById('sha'), gam: document.getElementById('gam'),
-                hig: document.getElementById('hig'), con: document.getElementById('con'), sat: document.getElementById('sat'),
-                vib: document.getElementById('vib'), ar: document.getElementById('ar_sel'), ambi: document.getElementById('ambi_chk'),
-                sh: document.getElementById('us_sel'), vol: document.getElementById('vol'), sync: document.getElementById('sync'), night: document.getElementById('night_chk')
+                bri: document.getElementById('bri'), sha: document.getElementById('sha'), gam: document.getElementById('gam'), 
+                hig: document.getElementById('hig'), con: document.getElementById('con'), sat: document.getElementById('sat'), 
+                vib: document.getElementById('vib'), ar: document.getElementById('ar_sel'), ambi: document.getElementById('ambi_chk'), 
+                sh: document.getElementById('us_sel'), vol: document.getElementById('vol'), sync: document.getElementById('sync'), night: document.getElementById('night_chk'),
+                eq_b: document.getElementById('eq_b'), eq_lb: document.getElementById('eq_lb'), eq_m: document.getElementById('eq_m'), eq_mh: document.getElementById('eq_mh'), eq_h: document.getElementById('eq_h')
             };
 
             function initAudio() {
                 if(ac) return; try {
                     const AC = window.AudioContext || window.webkitAudioContext; ac = new AC(); src = ac.createMediaElementSource(v);
-                    delayNode = ac.createDelay(5.0); gain = ac.createGain(); src.connect(delayNode); delayNode.connect(gain); gain.connect(ac.destination);
+                    const freqs = [60, 250, 1000, 4000, 12000]; const types = ['lowshelf', 'peaking', 'peaking', 'peaking', 'highshelf'];
+                    let lastNode = src;
+                    eqFilters = freqs.map((f, i) => { const filter = ac.createBiquadFilter(); filter.type = types[i]; filter.frequency.value = f; filter.Q.value = 1; filter.gain.value = 0; lastNode.connect(filter); lastNode = filter; return filter; });
+                    delayNode = ac.createDelay(5.0); gain = ac.createGain(); lastNode.connect(delayNode); delayNode.connect(gain); gain.connect(ac.destination);
                 } catch(e) {}
             }
             v.addEventListener('play', () => { initAudio(); if(ac && ac.state==='suspended') ac.resume(); });
 
+            function updateFPS() {
+                const fpsEl = document.getElementById('i_fps');
+                if (v.paused || v.ended) { fpsEl.innerText = "0"; } else {
+                    const now = performance.now(); const quality = v.getVideoPlaybackQuality(); const currentFrames = quality.totalVideoFrames;
+                    if (now - lastFPSUpdate >= 500) { const deltaFrames = currentFrames - lastFrameCount; const deltaTime = (now - lastFPSUpdate) / 1000; fpsEl.innerText = Math.round(deltaFrames / deltaTime); lastFrameCount = currentFrames; lastFPSUpdate = now; }
+                }
+                requestAnimationFrame(updateFPS);
+            }
+            updateFPS();
+
             function processAdaptiveHDR() {
-                const mode = inputs.hdr.value; if(mode !== 'hdr_plus' && mode !== 'hdr_dv') return;
+                const mode = inputs.hdr.value; if(mode === 'custom') return;
                 try {
-                    if(hiddenCanvas.width !== SCAN_RES) { hiddenCanvas.width = SCAN_RES; hiddenCanvas.height = SCAN_RES; }
-                    hCtx.drawImage(v, 0, 0, SCAN_RES, SCAN_RES); const d = hCtx.getImageData(0,0,SCAN_RES,SCAN_RES).data;
+                    if(hiddenCanvas.width !== 16) { hiddenCanvas.width = 16; hiddenCanvas.height = 16; }
+                    hCtx.drawImage(v, 0, 0, 16, 16); const d = hCtx.getImageData(0, 0, 16, 16).data;
                     let maxL = 0, avgL = 0;
-                    for(let i=0; i<d.length; i+=4) { let l = (0.2126*d[i] + 0.7152*d[i+1] + 0.0722*d[i+2]); if(l > maxL) maxL = l; avgL += l; }
-                    const avg = (avgL / (SCAN_RES*SCAN_RES)) / 255;
-                    const intensity = parseInt(inputs.lv.value);
+                    for(let i=0; i<d.length; i+=4) { 
+                        let l = (0.2126*d[i] + 0.7152*d[i+1] + 0.0722*d[i+2]); 
+                        if(l > maxL) maxL = l; avgL += l;
+                    }
+                    const avg = (avgL / 256) / 255;
+                    const linearFactor = parseInt(inputs.lv.value) * 0.1;
+                    const delta = (0.5 - avg);
+
                     document.getElementById('i_cll').innerText = Math.round((maxL/255) * 4000) + " nits";
                     document.getElementById('i_fall').innerText = Math.round(avg * 1000) + " nits";
 
-                    let tBri = 1.0, tSha = 1.0, tGam = 1.0, tHig = 1.0, tCon = 1.0, tSat = 1.0;
-                    if(avg < 0.3) { tSha = 1.0 + (0.3 - avg) * intensity * 0.5; tBri = 1.0 + (0.3 - avg) * intensity * 0.2; tCon = 1.1; }
-                    else if(avg > 0.6) { tHig = 1.0 - (avg - 0.6) * intensity * 0.4; tBri = 1.0 - (avg - 0.6) * intensity * 0.15; tSat = 1.0 - (avg - 0.6) * 0.1; }
+                    let tBri = 1.0, tSha = 1.0, tGam = 1.0, tHig = 1.0, tCon = 1.0, tSat = 1.0, tVib = 1.0;
 
-                    inputs.bri.value = parseFloat(inputs.bri.value) * 0.85 + tBri * 0.15;
-                    inputs.sha.value = parseFloat(inputs.sha.value) * 0.85 + tSha * 0.15;
-                    inputs.hig.value = parseFloat(inputs.hig.value) * 0.85 + tHig * 0.15;
-                    inputs.con.value = parseFloat(inputs.con.value) * 0.85 + tCon * 0.15;
-                    inputs.gam.value = parseFloat(inputs.gam.value) * 0.85 + tGam * 0.15;
+                    if(mode === 'hdr_plus' || mode === 'hdr_std' || mode === 'hdr_10') {
+                        tBri = 1.0 + (delta * linearFactor * 3.5);
+                        tSha = 1.0 - (delta * linearFactor * 0.8);
+                        tGam = 1.0 + (delta * linearFactor * 1.5);
+                        tHig = 1.0 - (delta * linearFactor * 1.0);
+                        tCon = 1.0 + (Math.abs(delta) * linearFactor * 0.6);
+                        tSat = 1.0 + (delta * linearFactor * 0.15);
+                        tVib = 1.0 + (delta * linearFactor * 0.3);
+                    } else if(mode === 'hdr_dv') {
+                        tBri = 1.0 + (delta * linearFactor * 1.8);
+                        tSha = 1.0 - (delta * linearFactor * 1.5);
+                        tGam = 1.0 + (delta * linearFactor * 2.0);
+                        tHig = 1.0 - (delta * linearFactor * 0.8);
+                        tCon = 1.0 + (linearFactor * 0.4);
+                        tSat = 1.0 + (delta * linearFactor * 0.12);
+                        tVib = 1.0 + (delta * linearFactor * 0.4);
+                    }
+
+                    const lerp = (cur, tar) => parseFloat(cur) * 0.85 + tar * 0.15;
+                    inputs.bri.value = lerp(inputs.bri.value, tBri);
+                    inputs.sha.value = lerp(inputs.sha.value, tSha);
+                    inputs.hig.value = lerp(inputs.hig.value, tHig);
+                    inputs.con.value = lerp(inputs.con.value, tCon);
+                    inputs.gam.value = lerp(inputs.gam.value, tGam);
+                    inputs.sat.value = lerp(inputs.sat.value, tSat);
+                    inputs.vib.value = lerp(inputs.vib.value, tVib);
+                    
                     upd(true);
                 } catch(e) {}
             }
 
             function upd(isAuto = false) {
-                if(!isAuto) {
-                    const mode = inputs.hdr.value;
-                    if(mode === 'none') { ['bri','sha','gam','hig','con','sat','vib'].forEach(k => inputs[k].value = 1); }
-                    else if(mode === 'hdr_std') { inputs.bri.value=1; inputs.sha.value=1.1; inputs.gam.value=1; inputs.hig.value=0.95; inputs.con.value=1.1; inputs.sat.value=1.1; inputs.vib.value=1.05; }
-                    else if(mode === 'hdr_10') { inputs.bri.value=1.05; inputs.sha.value=0.9; inputs.gam.value=1.1; inputs.hig.value=1.2; inputs.con.value=1.25; inputs.sat.value=1.05; inputs.vib.value=1; }
-                }
                 const comp = inputs.comp.value;
-                if(comp !== 'none') { vMainPane.className = 'video-pane pane-half'; vCompPane.style.display = 'block'; vCompPane.style.width = '50%'; }
+                if(comp !== 'none') { vMainPane.className = 'video-pane pane-half'; vCompPane.style.display = 'block'; vCompPane.style.width = '50%'; } 
                 else { vMainPane.className = 'video-pane pane-full'; vCompPane.style.display = 'none'; vCompPane.style.width = '0'; }
-
-                const ar = inputs.ar.value; if(ar.startsWith('scale')) { v.style.objectFit = 'contain'; v.style.transform = "scale("+ar.split('_')[1]+")"; }
+                const ar = inputs.ar.value; if(ar.startsWith('scale')) { v.style.objectFit = 'contain'; v.style.transform = "scale("+ar.split('_')[1]+")"; } 
                 else { v.style.objectFit = ar; v.style.transform = 'scale(1)'; }
-
                 canvas.style.opacity = inputs.ambi.checked ? 1 : 0;
-                const sha = (parseFloat(inputs.sha.value) - 1) * 25, gam = (parseFloat(inputs.gam.value) - 1) * 20, hig = (parseFloat(inputs.hig.value) - 1) * 30, vib = (parseFloat(inputs.vib.value) - 1) * 40;
+                
+                const sha = (parseFloat(inputs.sha.value) - 1) * 45; 
+                const gam = (parseFloat(inputs.gam.value) - 1) * 35;
+                const hig = (parseFloat(inputs.hig.value) - 1) * 55;
+                const vib = (parseFloat(inputs.vib.value) - 1) * 65;
+
                 let f = "brightness("+inputs.bri.value+") contrast("+inputs.con.value+") saturate("+inputs.sat.value+") contrast("+(1 + (sha/100))+") brightness("+(1 - (hig/200))+") hue-rotate("+(gam/5)+"deg)";
                 if(vib > 0) f += " saturate("+(1 + (vib/100))+")";
                 if(inputs.sh.value !== 'none') f += " url(#"+inputs.sh.value+")";
                 v.style.filter = f;
-
+                
                 ['bri','sha','gam','hig','con','sat','vib'].forEach(k => document.getElementById('lbl_'+k).innerText = Math.round(inputs[k].value * 100) + '%');
                 if(gain) gain.gain.value = inputs.vol.value; document.getElementById('lbl_vol').innerText = Math.round(inputs.vol.value*100)+'%';
-                if(delayNode) delayNode.delayTime.value = parseFloat(inputs.sync.value);
-                document.getElementById('lbl_sync').innerText = Math.round(inputs.sync.value * 1000) + 'ms';
+                if(delayNode) delayNode.delayTime.value = parseFloat(inputs.sync.value); document.getElementById('lbl_sync').innerText = Math.round(inputs.sync.value * 1000) + 'ms';
+                if(eqFilters.length) { const eqKeys = ['eq_b', 'eq_lb', 'eq_m', 'eq_mh', 'eq_h']; eqFilters.forEach((filter, i) => { filter.gain.value = inputs[eqKeys[i]].value; document.getElementById('lbl_'+eqKeys[i]).innerText = inputs[eqKeys[i]].value + 'dB'; }); }
             }
-
+            
             Object.values(inputs).forEach(i => i.oninput = () => upd(false));
             setInterval(processAdaptiveHDR, 100);
             document.querySelectorAll('.tab').forEach(t => t.onclick = () => { document.querySelectorAll('.tab, .panel-content').forEach(x => x.classList.remove('active')); t.classList.add('active'); document.getElementById('tab-'+t.dataset.tab).classList.add('active'); });
             gear.onclick = (e) => { e.stopPropagation(); panel.style.display = (panel.style.display == 'block' ? 'none' : 'block'); };
-
-            // --- LOGICA RESET FISICO POTENZIATA E CORRETTA ---
+            
             document.getElementById('rst_hard').onclick = () => {
-                localStorage.removeItem(storeKey);
-
-                // Reset Comboboxes
-                inputs.hdr.value = 'none';
-                inputs.lv.value = '1';
-                inputs.comp.value = 'none';
-                inputs.sh.value = 'none'; // Corretto: prima era us_sel (che causava errore)
-                inputs.ar.value = 'contain';
-
-                // Reset Checkboxes
-                inputs.ambi.checked = false;
-                inputs.night.checked = false;
-
-                // Reset TUTTI gli slider a 1 (100%)
-                ['bri','sha','gam','hig','con','sat','vib','vol'].forEach(k => {
-                    inputs[k].value = "1";
-                });
-
-                // Reset Sync
-                inputs.sync.value = "0";
-
-                // Forza aggiornamento visuale immediato
-                upd(false);
+                localStorage.removeItem(storeKey); inputs.hdr.value = 'hdr_dv'; inputs.lv.value = '3'; inputs.comp.value = 'none'; inputs.sh.value = 'sh-med'; inputs.ar.value = 'contain';
+                inputs.ambi.checked = inputs.night.checked = false; ['bri','sha','gam','hig','con','sat','vib','vol'].forEach(k => inputs[k].value = 1); ['eq_b', 'eq_lb', 'eq_m', 'eq_mh', 'eq_h'].forEach(k => inputs[k].value = 0);
+                inputs.sync.value = 0; upd(false);
             };
 
             function doSkip(n) { v.currentTime += n; accSkip += n; fb.innerText = (accSkip > 0 ? '+' : '') + accSkip + 's'; fb.style.opacity = 1; clearTimeout(skipTimer); skipTimer = setTimeout(() => { accSkip = 0; fb.style.opacity = 0; }, 800); }
