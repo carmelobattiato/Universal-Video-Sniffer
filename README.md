@@ -1,7 +1,8 @@
 # 📺 Universal Video Sniffer
 
+
 **Universal Video Sniffer** is an advanced **Tampermonkey UserScript** designed to intercept, play, and download video streams from almost any website, with a strong focus on **active superbuffering and real-time buffer control**.  
-It is the result of an in-depth analysis and enhancement of the original extension’s capabilities, engineered to **maximize playback stability** by aggressively preloading media during playback and exposing precise buffer metrics (in seconds), allowing users to pause, accumulate buffer, and resume viewing without interruptions — all while maintaining **high performance** and avoiding heavy browser plugins.
+It is the result of an in-depth analysis and enhancement of the original extension’s capabilities, engineered to **maximize playback stability** by aggressively preloading media during playback and exposing precise buffer metrics (in seconds). This allows users to pause, accumulate buffer, and resume viewing without interruptions, even on platforms known for unstable or throttled delivery — including complex streaming sites such as *Streaming Community* — while maintaining **high performance** without relying on heavy browser plugins.
 
 
 ---
