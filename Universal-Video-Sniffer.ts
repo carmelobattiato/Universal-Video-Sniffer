@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Universal Video Sniffer: Turbo Fix
+// @name         Universal Video Sniffer: Metadata & Probe
 // @namespace    http://tampermonkey.net/
-// @version      3.1
-// @description  Intercetta video, Scarica M3U8 unendo i segmenti (Turbo), Player con monitor Buffer.
+// @version      3.2
+// @description  Intercetta video, recupera metadati (titolo) dalla pagina, analizza risoluzione M3U8 e scarica con nome corretto.
 // @author       Tu
 // @match        *://*/*
 // @grant        GM_setClipboard
@@ -28,7 +28,7 @@
             top: 60px;
             left: 50%;
             transform: translateX(-50%);
-            width: 460px;
+            width: 480px;
             max-height: 600px;
             background-color: #0f0f0f;
             color: #e0e0e0;
@@ -58,18 +58,34 @@
         
         .uvs-item {
             background-color: #161616;
-            padding: 10px;
+            padding: 12px;
             border-radius: 6px;
             border: 1px solid #2a2a2a;
             display: flex;
             flex-direction: column;
             gap: 6px;
+            position: relative;
         }
-        .uvs-meta { display: flex; justify-content: space-between; align-items: center; }
+        .uvs-meta-header { display: flex; justify-content: space-between; align-items: center; }
         .uvs-type { font-size: 9px; color: #000; background: #4db8ff; padding: 2px 5px; border-radius: 3px; font-weight: 800; text-transform: uppercase; }
+        
+        /* Nuova sezione Info */
+        .uvs-info-row {
+            font-size: 11px;
+            color: #aaa;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+            margin-bottom: 2px;
+        }
+        .uvs-info-title { color: #fff; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; }
+        .uvs-info-res { color: #2ea043; background: rgba(46, 160, 67, 0.1); padding: 1px 4px; border-radius: 3px; }
+
         .uvs-url {
-            font-size: 11px; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-            background: #0a0a0a; padding: 5px; border-radius: 4px; font-family: monospace;
+            font-size: 10px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            background: #0a0a0a; padding: 4px; border-radius: 4px; font-family: monospace;
         }
         .uvs-actions { display: flex; gap: 8px; margin-top: 5px; }
         .uvs-btn {
@@ -83,7 +99,6 @@
         .uvs-turbo-btn { background-color: #e63946; box-shadow: 0 2px 5px rgba(230, 57, 70, 0.4); } 
         .uvs-dl-btn { background-color: #f39c12; } 
 
-        /* Barra Progresso Turbo */
         .uvs-progress-wrapper { display: none; margin-top: 8px; background: #111; padding: 8px; border-radius: 4px; }
         .uvs-status-text { font-size: 10px; color: #aaa; margin-bottom: 4px; display: block; }
         .uvs-progress-container {
@@ -93,7 +108,6 @@
             height: 100%; background: linear-gradient(90deg, #e63946, #ff4757); width: 0%; transition: width 0.1s;
         }
 
-        /* Badge in alto */
         .uvs-badge {
             position: fixed;
             top: 10px;
@@ -152,8 +166,59 @@
         badge.style.display = 'none';
     });
 
-    // --- FUNZIONE TURBO DOWNLOADER (Core logic) ---
-    // Usa GM_xmlhttpRequest per evitare CORS e scaricare i segmenti binary
+    // --- METADATA EXTRACTION ---
+    function getPageMetadata() {
+        // 1. Cerca Open Graph Title (spesso il più accurato)
+        let title = document.querySelector('meta[property="og:title"]')?.content;
+        
+        // 2. Se manca, cerca H1
+        if (!title) {
+            const h1 = document.querySelector('h1');
+            if (h1) title = h1.innerText;
+        }
+
+        // 3. Fallback sul titolo pagina
+        if (!title) title = document.title;
+
+        // Pulizia (Rimuove suffissi comuni di siti streaming)
+        if (title) {
+            title = title.replace(/\s[-|]\s?(Guarda|Streaming|Watch).*/i, '')
+                         .replace(/\s[-|]\s?Community.*/i, '')
+                         .trim();
+        }
+
+        return title || "Video";
+    }
+
+    // --- PROBE URL (Analisi tecnica) ---
+    async function probeUrl(url, type) {
+        if (type !== 'M3U8' && type !== 'HLS') return { resolution: null, ext: 'mp4' };
+
+        return new Promise(resolve => {
+            GM_xmlhttpRequest({
+                method: "GET",
+                url: url,
+                onload: (res) => {
+                    const text = res.responseText;
+                    let info = { resolution: null, ext: 'ts' };
+                    
+                    // Cerca la risoluzione più alta nel Master Playlist
+                    if (text.includes('RESOLUTION=')) {
+                        const resolutions = text.match(/RESOLUTION=(\d+x\d+)/g);
+                        if (resolutions) {
+                            // Prendi l'ultima (spesso la più alta) o parsa
+                            const lastRes = resolutions[resolutions.length - 1].split('=')[1];
+                            info.resolution = lastRes;
+                        }
+                    }
+                    resolve(info);
+                },
+                onerror: () => resolve({ resolution: null })
+            });
+        });
+    }
+
+    // --- FUNZIONI UTILI ---
     function gmFetch(url, isBinary = false) {
         return new Promise((resolve, reject) => {
             GM_xmlhttpRequest({
@@ -161,85 +226,58 @@
                 url: url,
                 responseType: isBinary ? 'arraybuffer' : 'text',
                 onload: (res) => {
-                    if (res.status >= 200 && res.status < 300) {
-                        resolve(res.response);
-                    } else {
-                        reject(new Error(res.statusText));
-                    }
+                    if (res.status >= 200 && res.status < 300) resolve(res.response);
+                    else reject(new Error(res.statusText));
                 },
                 onerror: (err) => reject(err)
             });
         });
     }
 
-    async function downloadHLS(url, progressBar, statusText) {
+    async function downloadHLS(url, progressBar, statusText, filename) {
         try {
-            statusText.innerText = "Analisi playlist M3U8...";
-            
-            // 1. Scarica playlist
+            statusText.innerText = "Analisi playlist...";
             let manifestText = await gmFetch(url);
             let baseUrl = url.substring(0, url.lastIndexOf('/') + 1);
 
-            // Gestione Master Playlist (quella che contiene le varianti di qualità)
             if (manifestText.includes('#EXT-X-STREAM-INF')) {
-                statusText.innerText = "Trovata Master Playlist, cerco flusso migliore...";
-                // Cerca l'URL del primo stream disponibile (spesso il migliore o il primo nella lista)
                 const streamMatch = manifestText.match(/^(?!#)(.*\.m3u8)$/m);
                 if (streamMatch) {
                     let subUrl = streamMatch[1].trim();
                     if (!subUrl.startsWith('http')) subUrl = baseUrl + subUrl;
-                    // Rilancia la funzione con il link diretto al flusso
-                    return downloadHLS(subUrl, progressBar, statusText);
+                    return downloadHLS(subUrl, progressBar, statusText, filename);
                 }
             }
 
-            // 2. Estrai segmenti (.ts)
             const lines = manifestText.split('\n');
             let segments = [];
-            
             lines.forEach(line => {
                 line = line.trim();
                 if (line && !line.startsWith('#')) {
-                    if (line.startsWith('http')) {
-                        segments.push(line);
-                    } else {
-                        segments.push(baseUrl + line);
-                    }
+                    if (line.startsWith('http')) segments.push(line);
+                    else segments.push(baseUrl + line);
                 }
             });
 
-            if (segments.length === 0) throw new Error("Nessun segmento video trovato.");
+            if (segments.length === 0) throw new Error("Nessun segmento trovato");
 
-            statusText.innerText = `Trovati ${segments.length} frammenti. Inizio Turbo Download...`;
-            
-            // 3. Download parallelo (Concurrency 5)
+            statusText.innerText = `Download di ${segments.length} segmenti...`;
             const totalSegments = segments.length;
             let downloadedCount = 0;
             const chunks = new Array(totalSegments);
             
             const downloadSegment = async (index) => {
                 try {
-                    const buffer = await gmFetch(segments[index], true); // true = binary
+                    const buffer = await gmFetch(segments[index], true);
                     chunks[index] = new Uint8Array(buffer);
                     downloadedCount++;
-                    
                     const percent = Math.round((downloadedCount / totalSegments) * 100);
                     progressBar.style.width = percent + '%';
-                    statusText.innerText = `Scaricamento: ${percent}% (${downloadedCount}/${totalSegments})`;
-                } catch (e) {
-                    console.warn("Errore segmento " + index, e);
-                    // Riprova una volta
-                    try {
-                        const buffer = await gmFetch(segments[index], true);
-                        chunks[index] = new Uint8Array(buffer);
-                        downloadedCount++;
-                    } catch(e2) {
-                        console.error("Segmento perso definitivamente", index);
-                    }
-                }
+                    statusText.innerText = `Download: ${percent}% (${downloadedCount}/${totalSegments})`;
+                } catch (e) { }
             };
 
-            const concurrency = 6; // 6 connessioni simultanee
+            const concurrency = 6;
             for (let i = 0; i < totalSegments; i += concurrency) {
                 const batch = [];
                 for (let j = 0; j < concurrency && (i + j) < totalSegments; j++) {
@@ -248,12 +286,9 @@
                 await Promise.all(batch);
             }
 
-            statusText.innerText = "Unione dei segmenti in corso...";
-            
-            // 4. Merge (Unione)
+            statusText.innerText = "Unione file...";
             let totalLength = 0;
             chunks.forEach(chunk => { if(chunk) totalLength += chunk.length; });
-            
             const mergedArray = new Uint8Array(totalLength);
             let offset = 0;
             chunks.forEach(chunk => {
@@ -263,30 +298,28 @@
                 }
             });
 
-            // 5. Salva file
-            const blob = new Blob([mergedArray], { type: 'video/mp4' }); // Salviamo come MP4
+            const blob = new Blob([mergedArray], { type: 'video/mp4' });
             const blobUrl = URL.createObjectURL(blob);
             
             const a = document.createElement('a');
             a.href = blobUrl;
-            a.download = `video_${Date.now()}.mp4`;
+            a.download = filename; // Usa il nome pulito
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             window.URL.revokeObjectURL(blobUrl);
 
-            statusText.innerText = "Download Completato! Salva il file.";
+            statusText.innerText = "Fatto! File salvato.";
             statusText.style.color = "#2ea043";
 
         } catch (e) {
-            console.error(e);
             statusText.innerText = "Errore: " + e.message;
             statusText.style.color = "#e63946";
         }
     }
 
-    // --- UI ELEMENTS ---
-    function addVideoToUI(url, sourceMethod) {
+    // --- UI LOGIC ---
+    async function addVideoToUI(url, sourceMethod) {
         if (FOUND_URLS.has(url)) return;
         FOUND_URLS.add(url);
 
@@ -295,12 +328,16 @@
         if (FOUND_URLS.size === 1) document.querySelector('.uvs-badge').style.display = 'flex';
 
         let type = getExtension(url);
-        // CORREZIONE LOGICA HLS: Se è .m3u8 O se l'estensione è "M3U8" O "HLS", attiva Turbo
         const isHls = url.includes('.m3u8') || type === 'HLS' || type === 'M3U8';
+        
+        // RECUPERA METADATI
+        const pageTitle = getPageMetadata();
+        let displayRes = "";
 
         const item = document.createElement('div');
         item.className = 'uvs-item';
 
+        // Placeholder UI
         let actionsHtml = `
             <button class="uvs-btn uvs-play-btn"><span>&#9658;</span> PLAY</button>
             <button class="uvs-btn uvs-copy-btn"><span>&#128203;</span> COPIA</button>
@@ -313,140 +350,76 @@
         }
 
         item.innerHTML = `
-            <div class="uvs-meta">
+            <div class="uvs-meta-header">
                 <span class="uvs-type">${isHls ? 'M3U8 / HLS' : type}</span>
                 <span style="font-size:9px; color:#555;">${sourceMethod}</span>
             </div>
+            
+            <!-- INFO ROW (Metadata) -->
+            <div class="uvs-info-row">
+                <span class="uvs-info-title" title="${pageTitle}">${pageTitle}</span>
+                <span class="uvs-info-res" id="res-${FOUND_URLS.size}">...</span>
+            </div>
+
             <div class="uvs-url" title="${url}">${url}</div>
             <div class="uvs-actions">${actionsHtml}</div>
             
-            <!-- Area Progresso Turbo -->
             <div class="uvs-progress-wrapper">
-                <span class="uvs-status-text">Pronto al download</span>
-                <div class="uvs-progress-container">
-                    <div class="uvs-progress-bar"></div>
-                </div>
+                <span class="uvs-status-text">In attesa...</span>
+                <div class="uvs-progress-container"><div class="uvs-progress-bar"></div></div>
             </div>
         `;
 
-        // PLAY Button
+        // ACTIONS
         const playBtn = item.querySelector('.uvs-play-btn');
         playBtn.onclick = () => openAdvancedPlayer(url, isHls);
 
-        // COPY Button
         const copyBtn = item.querySelector('.uvs-copy-btn');
         copyBtn.onclick = () => { GM_setClipboard(url); const t=copyBtn.innerHTML; copyBtn.innerText="OK!"; setTimeout(()=>copyBtn.innerHTML=t, 1000); };
 
-        // DOWNLOAD (Standard)
+        const turboBtn = item.querySelector('.uvs-turbo-btn');
+        if (turboBtn) {
+            turboBtn.onclick = () => {
+                const wrapper = item.querySelector('.uvs-progress-wrapper');
+                const bar = item.querySelector('.uvs-progress-bar');
+                const stat = item.querySelector('.uvs-status-text');
+                wrapper.style.display = 'block';
+                turboBtn.disabled = true;
+                turboBtn.style.opacity = '0.5';
+                downloadHLS(url, bar, stat, `${pageTitle}.mp4`);
+            };
+        }
+
         const dlBtn = item.querySelector('.uvs-dl-btn');
         if (dlBtn) {
             dlBtn.onclick = () => {
-                const filename = url.split('/').pop().split('?')[0] || 'video.mp4';
+                const finalName = `${pageTitle}.mp4`;
                 if (typeof GM_download !== 'undefined') {
-                    GM_download({ url: url, name: filename, saveAs: true });
+                    GM_download({ url: url, name: finalName, saveAs: true });
                 } else {
                     const a = document.createElement('a');
-                    a.href = url; a.download = filename; a.target = '_blank';
+                    a.href = url; a.download = finalName; a.target = '_blank';
                     document.body.appendChild(a); a.click(); document.body.removeChild(a);
                 }
             };
         }
 
-        // TURBO Button
-        const turboBtn = item.querySelector('.uvs-turbo-btn');
-        if (turboBtn) {
-            turboBtn.onclick = () => {
-                const progressWrapper = item.querySelector('.uvs-progress-wrapper');
-                const progressBar = item.querySelector('.uvs-progress-bar');
-                const statusText = item.querySelector('.uvs-status-text');
-                
-                progressWrapper.style.display = 'block';
-                turboBtn.disabled = true;
-                turboBtn.style.opacity = '0.5';
-                
-                downloadHLS(url, progressBar, statusText);
-            };
-        }
-
         document.getElementById('uvs-list').prepend(item);
+
+        // PROBE ASYNC (Aggiorna UI dopo)
+        if(isHls) {
+            probeUrl(url, 'M3U8').then(info => {
+                const resSpan = item.querySelector('.uvs-info-res');
+                if(info.resolution) resSpan.innerText = info.resolution;
+                else resSpan.innerText = 'Auto';
+            });
+        } else {
+            item.querySelector('.uvs-info-res').innerText = type;
+        }
     }
 
-    // --- PLAYER GENERATOR (Fixed: Solo Monitor Buffer) ---
     function openAdvancedPlayer(url, isHls) {
-        const playerHtml = `
-<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <title>Video Player</title>
-    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
-    <style>
-        html, body { margin: 0; width: 100%; height: 100vh; background: #000; overflow: hidden; font-family: sans-serif; }
-        .container { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
-        .plyr { width: 100% !important; height: 100% !important; }
-        .plyr__video-wrapper { width: 100% !important; height: 100% !important; background: #000; }
-        video { width: 100% !important; height: 100% !important; object-fit: contain !important; }
-        
-        /* Monitor Buffer Semplificato e Persistente */
-        .buffer-monitor {
-            position: absolute; top: 15px; left: 15px; z-index: 100;
-            background: rgba(0,0,0,0.6); padding: 5px 10px; border-radius: 5px;
-            color: #fff; font-size: 14px; font-weight: bold; font-family: monospace;
-            border: 1px solid rgba(255,255,255,0.2); pointer-events: none;
-        }
-        .buffer-monitor span { color: #4db8ff; }
-    </style>
-</head>
-<body>
-    <div class="buffer-monitor">BUFFER: <span id="buf-val">0s</span></div>
-    <div class="container">
-        <video id="player" controls crossorigin playsinline autoplay>
-            <source src="${url}" type="${isHls ? 'application/x-mpegURL' : 'video/mp4'}" />
-        </video>
-    </div>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-    <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const source = "${url}";
-            const video = document.getElementById('player');
-            const bufVal = document.getElementById('buf-val');
-            const opts = { autoplay: true, ratio: null };
-
-            // Monitor Buffer
-            setInterval(() => {
-                if(!video) return;
-                const ct = video.currentTime;
-                const buf = video.buffered;
-                let ahead = 0;
-                for(let i=0; i<buf.length; i++) {
-                    if(buf.start(i) <= ct + 0.5 && buf.end(i) >= ct) {
-                        ahead = buf.end(i) - ct;
-                    }
-                }
-                bufVal.innerText = ahead.toFixed(1) + 's';
-                bufVal.style.color = ahead > 30 ? '#2ea043' : (ahead > 5 ? '#f1c40f' : '#e74c3c');
-            }, 500);
-
-            if (Hls.isSupported() && (${isHls} || source.includes('.m3u8'))) {
-                const hls = new Hls({
-                    maxBufferLength: 1800, maxMaxBufferLength: 3600,
-                    maxBufferSize: 3000*1000*1000
-                });
-                hls.loadSource(source);
-                hls.attachMedia(video);
-                hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                    new Plyr(video, opts);
-                    video.play().catch(() => video.muted=true);
-                });
-            } else {
-                new Plyr(video, opts);
-                video.play().catch(() => video.muted=true);
-            }
-        });
-    </script>
-</body>
-</html>`;
+        const playerHtml = `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><title>Player</title><link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" /><style>html,body{margin:0;width:100%;height:100vh;background:#000;overflow:hidden;font-family:sans-serif}.container{width:100vw;height:100vh;display:flex;align-items:center;justify-content:center}.plyr{width:100%!important;height:100%!important}video{width:100%!important;height:100%!important;object-fit:contain!important}.buffer-monitor{position:absolute;top:15px;left:15px;z-index:100;background:rgba(0,0,0,0.6);padding:5px 10px;border-radius:5px;color:#fff;font-size:14px;font-weight:bold;font-family:monospace;border:1px solid rgba(255,255,255,0.2);pointer-events:none}.buffer-monitor span{color:#4db8ff}</style></head><body><div class="buffer-monitor">BUFFER: <span id="buf-val">0s</span></div><div class="container"><video id="player" controls crossorigin playsinline autoplay><source src="${url}" type="${isHls?'application/x-mpegURL':'video/mp4'}"/></video></div><script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script><script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script><script>document.addEventListener('DOMContentLoaded',()=>{const v=document.getElementById('player');const b=document.getElementById('buf-val');const s="${url}";const o={autoplay:true,ratio:null};setInterval(()=>{if(!v)return;const t=v.currentTime,f=v.buffered;let a=0;for(let i=0;i<f.length;i++)if(f.start(i)<=t+0.5&&f.end(i)>=t)a=f.end(i)-t;b.innerText=a.toFixed(1)+'s';b.style.color=a>30?'#2ea043':(a>5?'#f1c40f':'#e74c3c')},500);if(Hls.isSupported()&&(${isHls}||s.includes('.m3u8'))){const h=new Hls({maxBufferLength:1800,maxMaxBufferLength:3600,maxBufferSize:3000*1000*1000});h.loadSource(s);h.attachMedia(v);h.on(Hls.Events.MANIFEST_PARSED,()=>new Plyr(v,o));}else{new Plyr(v,o);}});</script></body></html>`;
         const blob = new Blob([playerHtml], { type: 'text/html' });
         window.open(URL.createObjectURL(blob), '_blank');
     }
