@@ -1,4 +1,4 @@
-# 📺 Universal Video Sniffer – Ultimate Turbo Fix (v3.1)
+# 📺 Universal Video Sniffer
 
 **Universal Video Sniffer** is an advanced **Tampermonkey UserScript** designed to intercept, play, and download video streams from almost any website.  
 It is the result of an in-depth analysis and enhancement of the original extension’s capabilities, optimized to deliver **high performance** without requiring heavy browser plugins.
