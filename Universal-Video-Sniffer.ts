@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Universal Video Sniffer: Speedster (v4.3)
+// @name         Universal Video Sniffer: Speedster (v5.2)
 // @namespace    http://tampermonkey.net/
-// @version      4.3
-// @description  Versione compatta v4.2: Buffer Player esteso a 300s.
+// @version      5.2
+// @description  Sniffer v5.1 + Auto-Hide veloce (2s) e Tasti Skip ridotti del 30%.
 // @author       Tu
 // @match        *://*/*
 // @grant        GM_setClipboard
@@ -17,13 +17,13 @@
     'use strict';
     const CFG = { ext: /\.(mp4|m3u8|flv|webm|mov|avi|mkv|mpd)(\?|$)/i, ign: /doubleclick|googlead|analytics|adsystem|segment|prebid/i };
     const FOUND = new Set(), ACTIVE = new Set();
-    
+
     GM_addStyle(`#uvs-c{position:fixed;top:60px;left:50%;transform:translateX(-50%);width:500px;background:#0f0f0f;color:#ccc;z-index:2147483647;border-radius:8px;box-shadow:0 10px 40px #000;font-family:sans-serif;display:none;flex-direction:column;border:1px solid #333;font-size:13px}#uvs-h{padding:10px;background:#1a1a1a;border-bottom:1px solid #333;display:flex;justify-content:space-between;font-weight:700;color:#fff}#uvs-th{background:#333;border:1px solid #444;color:#fff;width:40px;text-align:center}#uvs-l{overflow-y:auto;padding:10px;max-height:550px;display:flex;flex-direction:column;gap:10px}.uvs-i{background:#161616;padding:10px;border-radius:6px;border:1px solid #2a2a2a}.uvs-u{font-size:10px;color:#666;overflow:hidden;text-overflow:ellipsis;background:#0a0a0a;padding:4px;font-family:monospace;margin:5px 0}.uvs-a{display:flex;gap:5px}.uvs-b{border:none;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:700;flex:1;color:#fff}.uvs-b:hover{filter:brightness(1.2)}.uvs-b:disabled{opacity:.5}.pb{background:#2ea043}.cb{background:#333}.tb{background:#e63946}.db{background:#f39c12}.pw{display:none;margin-top:8px;background:#111;padding:8px}.sr{display:flex;justify-content:space-between;font-size:10px;color:#aaa;align-items:center}.bar-c{height:8px;background:#333;border-radius:4px;overflow:hidden;margin-top:4px}.bar{height:100%;background:#e63946;width:0%}.bg{position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#141414f2;border:1px solid #444;color:#fff;padding:6px 16px;border-radius:20px;font-weight:600;font-size:13px;cursor:pointer;z-index:2147483646;display:none}.sb{background:#b71c1c;padding:2px 6px}.psb{background:#f39c12;color:#000;padding:2px 6px}`);
 
     const ui = document.createElement('div'), badge = document.createElement('div');
-    ui.id = 'uvs-c'; ui.innerHTML = `<div id="uvs-h"><span>Speedster v4.3</span><div>⚡ <input type="number" id="uvs-th" value="5" min="1"> <span id="uvs-x" style="cursor:pointer;margin-left:10px">×</span></div></div><div id="uvs-l"></div>`;
+    ui.id = 'uvs-c'; ui.innerHTML = `<div id="uvs-h"><span>Speedster v5.2</span><div>⚡ <input type="number" id="uvs-th" value="5" min="1"> <span id="uvs-x" style="cursor:pointer;margin-left:10px">×</span></div></div><div id="uvs-l"></div>`;
     badge.className = 'bg'; badge.innerHTML = 'VIDEO: <span id="bc">0</span>';
-    
+
     (document.documentElement || document.body).appendChild(ui);
     (document.documentElement || document.body).appendChild(badge);
 
@@ -55,14 +55,14 @@
                 ct.res = () => { txt.innerText = "..."; next() };
                 ct.kill = () => { ACTIVE.delete(ct); no("Stop") };
                 ct.upd = () => next();
-                
+
                 const next = () => {
                     if (ct.stop || ct.pause) return (ct.pause && (txt.innerText = `Pausa ${cmp}/${tot}`));
                     if (err || cmp === tot) return fin();
                     let max = parseInt(document.getElementById('uvs-th').value) || 5;
                     while (act < max && cur < tot) { if (ct.stop || ct.pause) return; proc(cur++); }
                 };
-                
+
                 const proc = async (i, att = 0) => {
                     if (ct.stop) { act--; return; } act++; th.innerText = "T:" + act;
                     try {
@@ -80,7 +80,7 @@
                         else { err = 1; txt.innerText = "Err " + i; ACTIVE.delete(ct); no(e); }
                     }
                 };
-                
+
                 const fin = () => {
                     ACTIVE.delete(ct); if (ct.stop) return;
                     sb.style.display = pb.style.display = "none"; txt.innerText = "Unione...";
@@ -110,8 +110,179 @@
             <button class="uvs-b psb" style="display:none">||</button><button class="uvs-b sb" style="display:none">X</button></div></div><div class="bar-c"><div class="bar"></div></div></div>`;
 
         div.querySelector('.pb').onclick = () => {
-            // Increased Buffer Config: maxBufferLength 300s, maxMaxBufferLength 600s, maxBufferSize 500MB
-            let h = `<!doctype html><html><head><link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css"/><style>.m{position:absolute;top:10px;left:10px;background:#0009;color:#fff;padding:5px;z-index:9;font-family:mono;pointer-events:none}</style></head><body style="margin:0;background:#000"><div class="m">BUF: <span id="b">0s</span></div><video id="p" controls style="width:100%;height:100vh"></video><script src="https://cdn.jsdelivr.net/npm/hls.js"></script><script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script><script>const v=document.getElementById('p'),b=document.getElementById('b'),s="${u}";if(Hls.isSupported()&&${isH}){const h=new Hls({maxBufferLength:300,maxMaxBufferLength:600,maxBufferSize:500*1000*1000});h.loadSource(s);h.attachMedia(v)}else{v.src=s}new Plyr(v,{autoplay:1});setInterval(()=>{try{let t=v.currentTime,r=v.buffered,a=0;for(let i=0;i<r.length;i++)if(r.start(i)<=t+0.5&&r.end(i)>=t)a=r.end(i)-t;b.innerText=a.toFixed(1)+'s';b.style.color=a>300?'#0f0':(a>30?'#ff0':'#f00')}catch(e){}},500)</script></body></html>`;
+            const h = `<!doctype html><html><head><meta charset="UTF-8"><title>${ti}</title><link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css"/><style>
+                body{margin:0;background:#000;font-family:sans-serif;color:#fff;overflow:hidden}
+
+                .video-container { position: relative; width: 100%; height: 100vh; overflow: hidden; background:#000; cursor: default; }
+
+                /* Gear Button */
+                .gear-btn{position:absolute;top:20px;left:20px;font-size:24px;cursor:pointer;z-index:100;text-shadow:0 2px 4px #000;opacity:0.8;transition:all .3s}
+                .gear-btn:hover{opacity:1;transform:rotate(30deg)}
+
+                /* Small Skip Buttons (Reduced 30% from 60px -> 42px) */
+                .skip-btn { position: absolute; top: 50%; transform: translateY(-50%); width: 42px; height: 42px; background: rgba(0,0,0,0.3); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: bold; cursor: pointer; transition: all 0.2s; z-index: 50; color: #fff; user-select: none; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(2px); }
+                .skip-btn:hover { background: rgba(255,255,255,0.15); transform: translateY(-50%) scale(1.1); }
+                .skip-prev { left: 20px; }
+                .skip-next { right: 20px; }
+
+                /* Feedback Overlay */
+                .feedback { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.8); background: rgba(0,0,0,0.7); padding: 15px 25px; border-radius: 30px; font-size: 24px; font-weight: bold; color: #fff; z-index: 60; pointer-events: none; opacity: 0; transition: all 0.2s; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+
+                /* Settings Panel */
+                .overlay{position:absolute;top:60px;left:20px;background:rgba(20,20,20,0.95);padding:15px;border-radius:8px;z-index:101;font-size:12px;border:1px solid #444;width:240px;backdrop-filter:blur(5px);box-shadow:0 5px 20px #000;display:none;animation:fadeIn .2s}
+                @keyframes fadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+
+                .row{margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+                label{width:60px;color:#ccc;font-weight:600} input[type=range]{flex:1;height:4px;cursor:pointer}
+                .val{width:35px;text-align:right;color:#4db8ff;font-family:monospace}
+
+                .tit{font-weight:800;margin-bottom:8px;color:#fff;border-bottom:1px solid #444;padding-bottom:4px;text-transform:uppercase;font-size:11px;letter-spacing:1px}
+                button.rst{width:100%;background:#333;border:none;color:#fff;padding:8px;cursor:pointer;margin-top:5px;border-radius:4px;font-weight:bold;font-size:11px}
+                button.rst:hover{background:#b71c1c}
+
+                .buf-val{font-weight:bold;font-family:monospace;color:#f00}
+
+                /* Auto Hide Class */
+                .fade-out { opacity: 0 !important; pointer-events: none; }
+            </style></head><body>
+
+            <div class="video-container" id="container">
+                <div class="gear-btn" id="gear">&#9881;</div>
+
+                <div class="skip-btn skip-prev" id="b_prev">⏪</div>
+                <div class="skip-btn skip-next" id="b_next">⏩</div>
+                <div class="feedback" id="feedback">+10s</div>
+
+                <div class="overlay" id="panel">
+                    <div class="tit">Stato Rete</div>
+                    <div class="row"><span>Buffer</span> <span class="buf-val" id="b_val">0.0s</span></div>
+
+                    <div class="tit" style="margin-top:10px">Immagine</div>
+                    <div class="row"><label>Lum</label><input type="range" id="bri" min="0" max="2" step="0.1" value="1"><span class="val" id="v_b">100%</span></div>
+                    <div class="row"><label>Con</label><input type="range" id="con" min="0" max="2" step="0.1" value="1"><span class="val" id="v_c">100%</span></div>
+                    <div class="row"><label>Sat</label><input type="range" id="sat" min="0" max="2" step="0.1" value="1"><span class="val" id="v_s">100%</span></div>
+
+                    <div class="tit" style="margin-top:10px">Audio (Boost 500%)</div>
+                    <div class="row"><label>Vol</label><input type="range" id="vol" min="0" max="5" step="0.1" value="1"><span class="val" id="v_v">100%</span></div>
+
+                    <button class="rst" id="rst">RESET TUTTO</button>
+                </div>
+
+                <video id="p" controls crossorigin="anonymous" playsinline style="width:100%;height:100%"></video>
+            </div>
+
+            <script src="https://cdn.jsdelivr.net/npm/hls.js"></script><script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
+            <script>
+                const container = document.getElementById('container');
+                const v=document.getElementById('p'), b_val=document.getElementById('b_val'), s="${u}";
+                const vol=document.getElementById('vol'),bri=document.getElementById('bri'),con=document.getElementById('con'),sat=document.getElementById('sat');
+                const panel=document.getElementById('panel'), gear=document.getElementById('gear');
+                const fb=document.getElementById('feedback'), b_prev=document.getElementById('b_prev'), b_next=document.getElementById('b_next');
+                let ac, src, gain, player;
+                let idleTimer;
+
+                // Media Session
+                if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: "${ti}", artist: "Speedster Player" });
+
+                // Toggle Settings
+                gear.onclick = (e) => {
+                    e.stopPropagation();
+                    panel.style.display = (panel.style.display === 'block') ? 'none' : 'block';
+                };
+
+                // HLS Setup
+                if(Hls.isSupported()&&${isH}){
+                    const h=new Hls({maxBufferLength:300,maxMaxBufferLength:600});
+                    h.loadSource(s);h.attachMedia(v);
+                }else{v.src=s}
+
+                player = new Plyr(v, {
+                    autoplay: 1,
+                    captions: { active: false },
+                    controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'],
+                    fullscreen: { enabled: true, fallback: true, iosNative: true, container: '.video-container' }
+                });
+
+                // Auto-Hide Logic (2 seconds)
+                function resetIdleTimer() {
+                    clearTimeout(idleTimer);
+                    gear.classList.remove('fade-out');
+                    b_prev.classList.remove('fade-out');
+                    b_next.classList.remove('fade-out');
+                    container.style.cursor = 'default';
+
+                    if (panel.style.display === 'block') return;
+
+                    idleTimer = setTimeout(() => {
+                        gear.classList.add('fade-out');
+                        b_prev.classList.add('fade-out');
+                        b_next.classList.add('fade-out');
+                        if (!v.paused) container.style.cursor = 'none';
+                    }, 2000); // 2000ms = 2s
+                }
+                container.addEventListener('mousemove', resetIdleTimer);
+                container.addEventListener('click', resetIdleTimer);
+                resetIdleTimer();
+
+                function initAudio(){
+                    if(ac) return;
+                    try{
+                        const AC = window.AudioContext || window.webkitAudioContext;
+                        ac = new AC();
+                        src = ac.createMediaElementSource(v);
+                        gain = ac.createGain();
+                        src.connect(gain);
+                        gain.connect(ac.destination);
+                    }catch(e){}
+                }
+                v.addEventListener('play', ()=>{ initAudio(); if(ac && ac.state==='suspended') ac.resume(); });
+
+                // SKIP LOGIC
+                let accSkip = 0;
+                let skipTimer;
+                function doSkip(amount) {
+                    v.currentTime += amount;
+                    accSkip += amount;
+                    const sign = accSkip > 0 ? '+' : '';
+                    fb.innerText = \`\${sign}\${accSkip}s\`;
+                    fb.style.opacity = '1';
+                    fb.style.transform = 'translate(-50%, -50%) scale(1.2)';
+                    clearTimeout(skipTimer);
+                    skipTimer = setTimeout(() => {
+                        accSkip = 0;
+                        fb.style.opacity = '0';
+                        fb.style.transform = 'translate(-50%, -50%) scale(0.8)';
+                    }, 800);
+                }
+                b_prev.onclick = (e) => { e.stopPropagation(); doSkip(-10); };
+                b_next.onclick = (e) => { e.stopPropagation(); doSkip(10); };
+
+                window.addEventListener('keydown', (e) => {
+                    if (e.key === 'ArrowRight') { doSkip(10); }
+                    if (e.key === 'ArrowLeft') { doSkip(-10); }
+                });
+
+                const upd=()=>{
+                    const val = parseFloat(vol.value);
+                    if(gain) gain.gain.value = val;
+                    else v.volume = val > 1 ? 1 : val;
+                    v.muted = (val === 0);
+                    v.style.filter = \`brightness(\${bri.value}) contrast(\${con.value}) saturate(\${sat.value})\`;
+                    document.getElementById('v_v').innerText = Math.round(val*100)+'%';
+                    document.getElementById('v_b').innerText = Math.round(bri.value*100)+'%';
+                    document.getElementById('v_c').innerText = Math.round(con.value*100)+'%';
+                    document.getElementById('v_s').innerText = Math.round(sat.value*100)+'%';
+                };
+                [vol,bri,con,sat].forEach(i=>i.oninput=upd);
+                document.getElementById('rst').onclick=()=>{vol.value=1;bri.value=1;con.value=1;sat.value=1;upd()};
+
+                setInterval(()=>{try{
+                    let t=v.currentTime,r=v.buffered,a=0;
+                    for(let i=0;i<r.length;i++)if(r.start(i)<=t+0.5&&r.end(i)>=t)a=r.end(i)-t;
+                    b_val.innerText=a.toFixed(1)+'s';
+                    b_val.style.color=a>300?'#0f0':(a>30?'#ff0':'#f00');
+                }catch(e){}},500);
+            </script></body></html>`;
             window.open(URL.createObjectURL(new Blob([h], { type: 'text/html' })), '_blank');
         };
         div.querySelector('.cb').onclick = e => { GM_setClipboard(u); e.target.innerText = "OK"; setTimeout(() => e.target.innerText = "COPY", 1000) };
