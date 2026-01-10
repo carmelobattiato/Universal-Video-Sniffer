@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Universal Video Sniffer: Speedster (v9.7 HDR Dynamic + Info)
+// @name         Universal Video Sniffer: Speedster (v11.5 Matrix Fit Fix)
 // @namespace    http://tampermonkey.net/
-// @version      9.7
-// @description  HDR 100% dinamico. Default Level 3 + Dolby Vision + Nitidezza Media. Info Sviluppatore.
+// @version      11.5
+// @description  Fix Active Dimming su formato Riempi/Cover. Default CINEMA.
 // @author       Carmelo Battiato
 // @match        *://*/*
 // @grant        GM_setClipboard
@@ -15,7 +15,8 @@
 
 (function() {
     'use strict';
-    const VER = "9.7";
+    console.log("Speedster v11.5 - Matrix Fix");
+    const VER = "11.5";
     const CFG = { ext: /\.(mp4|m3u8|flv|webm|mov|avi|mkv|mpd)(\?|$)/i, ign: /doubleclick|googlead|analytics|adsystem|segment|prebid/i };
     const FOUND = new Set(), ACTIVE = new Set();
     
@@ -125,10 +126,16 @@
             #wrapper { position: relative; width: 100%; height: 100vh; display: flex; align-items: center; justify-content: center; background:#000; }
             #ambilight { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 0; transition: opacity 1s; filter: blur(100px) saturate(250%); pointer-events: none; }
             #viewport { display: flex; width: 100%; height: 100%; z-index: 10; position: relative; }
-            .video-pane { position: relative; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; transition: width 0.3s ease; }
-            .pane-full { width: 100%; } .pane-half { width: 50%; border-right: 2px solid #4db8ff; }
+            .video-pane { position: relative; height: 100%; width: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; transition: width 0.3s ease; }
+            .pane-half { width: 50% !important; border-right: 2px solid #4db8ff; }
             .plyr { width: 100%; height: 100%; }
             video { width: 100% !important; height: 100% !important; object-fit: contain; transition: transform 0.3s; }
+            
+            #grid_layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20; display: none; mix-blend-mode: difference; transition: transform 0.3s; }
+            
+            /* Matrix: Hard Light for deep black crunch */
+            #matrix_layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15; display: none; mix-blend-mode: hard-light; opacity: 1; image-rendering: auto; will-change: contents; transition: filter 0.2s, transform 0.3s; }
+
             #v_comp_pane { background: #000; position: absolute; right: 0; width: 0; height: 100%; z-index: 11; border-left: 2px solid #4db8ff; transition: width 0.3s ease; display: none; }
             #v_comp { width: 100%; height: 100%; object-fit: contain; }
             .pane-label { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.7); padding: 4px 10px; border-radius: 4px; font-size: 10px; font-weight: 800; color: #4db8ff; z-index: 15; text-transform: uppercase; border: 1px solid #333; }
@@ -162,7 +169,11 @@
         <div id="wrapper">
             <canvas id="ambilight"></canvas>
             <div id="viewport">
-                <div class="video-pane pane-full" id="v_main_pane"><video id="p" controls crossorigin="anonymous" playsinline></video></div>
+                <div class="video-pane" id="v_main_pane">
+                    <video id="p" controls crossorigin="anonymous" playsinline></video>
+                    <canvas id="matrix_layer"></canvas>
+                    <div id="grid_layer"></div>
+                </div>
                 <div id="v_comp_pane"><span class="pane-label" id="comp_lbl">Confronto</span><video id="v_comp" muted playsinline></video></div>
             </div>
             <div class="gear-btn" id="gear">&#9881;</div><div class="skip-btn skip-prev" id="b_prev">⏪</div><div class="skip-btn skip-next" id="b_next">⏩</div><div class="feedback" id="feedback"></div>
@@ -178,15 +189,30 @@
                         <option value="hdr_plus">HDR10+ (Global Dyn)</option>
                         <option value="hdr_dv" selected>Dolby Vision (Granular)</option>
                     </select></div>
-                    <div class="row"><label>Intensità</label><select id="hdr_lv">
+                    <div class="row"><label>Preset</label><select id="hdr_preset">
+                        <option value="SPORT">SPORT (High Brightness)(</option>
+                        <option value="vivid">Vivid / TV (Bilanciato)</option>
+                        <option value="CINEMA" selected>CINEMA (OLED Perfect Black)</option>
+                        <option value="game">Gaming (Saturazione)</option>
+                    </select></div>
+                    <div class="row"><label>Livello FX</label><select id="hdr_lv">
                         <option value="1">Livello 1 (±10%)</option>
                         <option value="2">Livello 2 (±20%)</option>
-                        <option value="3" selected>Livello 3 (±30%)</option>
+                        <option value="3">Livello 3 (±30%)</option>
                         <option value="4">Livello 4 (±40%)</option>
-                        <option value="5">Livello 5 (±50%)</option>
+                        <option value="5" selected>Livello 5 (±50%)</option>
                     </select></div>
 
-                    <div class="tit">Cinema Grading</div>
+                    <div class="tit">Local Dimming & Grid</div>
+                    <div class="row"><label>Risoluzione</label><select id="grid_res">
+                        <option value="none">Off</option><option value="1">1x1 (Full)</option><option value="3">3x3 (Terzi)</option>
+                        <option value="10">10x10</option><option value="50">50x50</option>
+                        <option value="100">100x100</option><option value="500">500x500 (⚠️)</option><option value="1000">1000x1000 (☠️)</option>
+                    </select></div>
+                    <div class="row"><label>Active Dimming</label><label class="switch"><input type="checkbox" id="matrix_chk"><span class="slider"></span></label></div>
+                    <div class="row"><label>Vedi Griglia</label><label class="switch"><input type="checkbox" id="grid_vis_chk"><span class="slider"></span></label></div>
+
+                    <div class="tit">SPORT Grading (Live Avg)</div>
                     <div class="row"><label>Luce (Gain)</label><input type="range" id="bri" min="0.5" max="1.5" step="0.01" value="1"><span class="val-label" id="lbl_bri">100%</span></div>
                     <div class="row"><label>Ombre (Lift)</label><input type="range" id="sha" min="0.5" max="1.5" step="0.01" value="1"><span class="val-label" id="lbl_sha">100%</span></div>
                     <div class="row"><label>Scuri (Gamma)</label><input type="range" id="gam" min="0.5" max="1.5" step="0.01" value="1"><span class="val-label" id="lbl_gam">100%</span></div>
@@ -238,7 +264,7 @@
         <script src="https://cdn.jsdelivr.net/npm/hls.js"></script><script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
         <script>
             const v = document.getElementById('p'), vComp = document.getElementById('v_comp'), canvas = document.getElementById('ambilight'), ctx = canvas.getContext('2d');
-            const panel = document.getElementById('panel'), gear = document.getElementById('gear');
+            const panel = document.getElementById('panel'), gear = document.getElementById('gear'), gridLayer = document.getElementById('grid_layer'), mCanvas = document.getElementById('matrix_layer'), mCtx = mCanvas.getContext('2d', {alpha: true});
             const b_prev = document.getElementById('b_prev'), b_next = document.getElementById('b_next'), fb = document.getElementById('feedback');
             const vMainPane = document.getElementById('v_main_pane'), vCompPane = document.getElementById('v_comp_pane');
             const hiddenCanvas = document.createElement('canvas'); const hCtx = hiddenCanvas.getContext('2d', {willReadFrequently:true});
@@ -254,19 +280,21 @@
             } else { v.src = vComp.src = "${u}"; }
             
             const player = new Plyr(v, { autoplay:1, controls:['play-large','play','progress','current-time','mute','volume','settings','pip','fullscreen'], settings:['quality','speed','loop'], fullscreen: { container: '#wrapper' } });
-            v.onplay = () => vComp.play(); v.onpause = () => vComp.pause(); 
+            v.onplay = () => { vComp.play(); }; 
+            v.onpause = () => { vComp.pause(); };
             v.onseeking = () => { vComp.currentTime = v.currentTime; };
             v.onseeked = () => { vComp.currentTime = v.currentTime; };
             setInterval(() => { if(!v.paused && Math.abs(v.currentTime - vComp.currentTime) > 0.25) vComp.currentTime = v.currentTime; }, 500);
 
-            v.addEventListener('ready', () => { const pDiv = document.querySelector('.plyr'); if(pDiv) { [gear, b_prev, b_next, fb, panel, document.getElementById('resume_box')].forEach(el => pDiv.appendChild(el)); } });
+            v.addEventListener('ready', () => { const pDiv = document.querySelector('.plyr'); if(pDiv) { [gear, b_prev, b_next, fb, panel, document.getElementById('resume_box')].forEach(el => pDiv.appendChild(el)); pDiv.addEventListener('dblclick', e => { e.preventDefault(); e.stopPropagation(); }); } });
 
             const inputs = { 
-                comp: document.getElementById('comp_sel'), hdr: document.getElementById('hdr_mode'), lv: document.getElementById('hdr_lv'),
+                comp: document.getElementById('comp_sel'), hdr: document.getElementById('hdr_mode'), lv: document.getElementById('hdr_lv'), preset: document.getElementById('hdr_preset'),
                 bri: document.getElementById('bri'), sha: document.getElementById('sha'), gam: document.getElementById('gam'), 
                 hig: document.getElementById('hig'), con: document.getElementById('con'), sat: document.getElementById('sat'), 
                 vib: document.getElementById('vib'), ar: document.getElementById('ar_sel'), ambi: document.getElementById('ambi_chk'), 
                 sh: document.getElementById('us_sel'), vol: document.getElementById('vol'), sync: document.getElementById('sync'), night: document.getElementById('night_chk'),
+                res: document.getElementById('grid_res'), matrix: document.getElementById('matrix_chk'), showGrid: document.getElementById('grid_vis_chk'),
                 eq_b: document.getElementById('eq_b'), eq_lb: document.getElementById('eq_lb'), eq_m: document.getElementById('eq_m'), eq_mh: document.getElementById('eq_mh'), eq_h: document.getElementById('eq_h')
             };
 
@@ -291,62 +319,229 @@
             }
             updateFPS();
 
+            // Stats accumulator for UI Update
+            let matrixStats = { bri:0, sha:0, gam:0, con:0, sat:0, count:0 };
+
+            // Function to sync overlay position exactly to the video (handling object-fit:contain AND cover)
+            function syncOverlays() {
+                if(!v.videoWidth) return;
+                
+                const mode = inputs.ar.value; // Get current format
+                const wrapperRatio = v.clientWidth / v.clientHeight; // Screen ratio
+                const videoRatio = v.videoWidth / v.videoHeight; // Source ratio
+                
+                let finalW, finalH, finalTop, finalLeft;
+
+                if (mode === 'fill') {
+                    // Stretch: Just fill screen
+                    finalW = v.clientWidth;
+                    finalH = v.clientHeight;
+                    finalTop = 0; 
+                    finalLeft = 0;
+                } 
+                else if (mode === 'cover') {
+                    // Riempi: Expand to cover (Crop logic - INVERTED from contain)
+                    if (wrapperRatio > videoRatio) {
+                        // Screen is wider than video: Width matches screen, Height expands
+                        finalW = v.clientWidth;
+                        finalH = finalW / videoRatio;
+                    } else {
+                        // Screen is taller than video: Height matches screen, Width expands
+                        finalH = v.clientHeight;
+                        finalW = finalH * videoRatio;
+                    }
+                    // Center it (negative offsets to center the overflow)
+                    finalTop = (v.clientHeight - finalH) / 2;
+                    finalLeft = (v.clientWidth - finalW) / 2;
+                } 
+                else {
+                    // Adatta (Contain) & Scale (Zoom uses contain base)
+                    if (wrapperRatio > videoRatio) {
+                        finalH = v.clientHeight;
+                        finalW = finalH * videoRatio;
+                    } else {
+                        finalW = v.clientWidth;
+                        finalH = finalW / videoRatio;
+                    }
+                    finalTop = (v.clientHeight - finalH) / 2;
+                    finalLeft = (v.clientWidth - finalW) / 2;
+                }
+
+                [gridLayer, mCanvas].forEach(el => {
+                    el.style.width = finalW + 'px';
+                    el.style.height = finalH + 'px';
+                    el.style.left = finalLeft + 'px';
+                    el.style.top = finalTop + 'px';
+                });
+            }
+            window.addEventListener('resize', syncOverlays);
+            setInterval(syncOverlays, 1000); // Check regularly for layout shifts
+
             function processAdaptiveHDR() {
-                const mode = inputs.hdr.value; if(mode === 'custom') return;
+                const mode = inputs.hdr.value; 
+                if(mode !== 'custom' && (!inputs.matrix.checked || inputs.res.value === 'none')) {
+                    try {
+                        if(hiddenCanvas.width !== 16) { hiddenCanvas.width = 16; hiddenCanvas.height = 16; }
+                        hCtx.drawImage(v, 0, 0, 16, 16); const d = hCtx.getImageData(0, 0, 16, 16).data;
+                        let maxL = 0, avgL = 0;
+                        for(let i=0; i<d.length; i+=4) { 
+                            let l = (0.2126*d[i] + 0.7152*d[i+1] + 0.0722*d[i+2]); 
+                            if(l > maxL) maxL = l; avgL += l;
+                        }
+                        const avg = (avgL / 256) / 255;
+                        calcGlobalParams(avg, maxL/255);
+                        upd(true);
+                    } catch(e) {}
+                }
+                
+                if(inputs.matrix.checked && inputs.res.value !== 'none') {
+                    processMatrixHDR();
+                }
+            }
+
+            function calcGlobalParams(avg, max) {
+                 const linearFactor = parseInt(inputs.lv.value) * 0.1;
+                 const delta = (0.5 - avg);
+                 const p = getPresetParams();
+                 document.getElementById('i_cll').innerText = Math.round(max * 4000) + " nits";
+                 document.getElementById('i_fall').innerText = Math.round(avg * 1000) + " nits";
+                 
+                 // Smart Clamping for SPORT
+                 if (inputs.preset.value === 'SPORT' && avg < 0.2) {
+                     inputs.sha.value = 0.5 + (0.3 * (1 - avg*5)); // Force crush gray
+                 }
+                 
+                 applyParams(delta, linearFactor, p);
+            }
+            
+            function processMatrixHDR() {
                 try {
-                    if(hiddenCanvas.width !== 16) { hiddenCanvas.width = 16; hiddenCanvas.height = 16; }
-                    hCtx.drawImage(v, 0, 0, 16, 16); const d = hCtx.getImageData(0, 0, 16, 16).data;
-                    let maxL = 0, avgL = 0;
-                    for(let i=0; i<d.length; i+=4) { 
-                        let l = (0.2126*d[i] + 0.7152*d[i+1] + 0.0722*d[i+2]); 
-                        if(l > maxL) maxL = l; avgL += l;
-                    }
-                    const avg = (avgL / 256) / 255;
-                    const linearFactor = parseInt(inputs.lv.value) * 0.1;
-                    const delta = (0.5 - avg);
-
-                    document.getElementById('i_cll').innerText = Math.round((maxL/255) * 4000) + " nits";
-                    document.getElementById('i_fall').innerText = Math.round(avg * 1000) + " nits";
-
-                    let tBri = 1.0, tSha = 1.0, tGam = 1.0, tHig = 1.0, tCon = 1.0, tSat = 1.0, tVib = 1.0;
-
-                    if(mode === 'hdr_plus' || mode === 'hdr_std' || mode === 'hdr_10') {
-                        tBri = 1.0 + (delta * linearFactor * 3.5);
-                        tSha = 1.0 - (delta * linearFactor * 0.8);
-                        tGam = 1.0 + (delta * linearFactor * 1.5);
-                        tHig = 1.0 - (delta * linearFactor * 1.0);
-                        tCon = 1.0 + (Math.abs(delta) * linearFactor * 0.6);
-                        tSat = 1.0 + (delta * linearFactor * 0.15);
-                        tVib = 1.0 + (delta * linearFactor * 0.3);
-                    } else if(mode === 'hdr_dv') {
-                        tBri = 1.0 + (delta * linearFactor * 1.8);
-                        tSha = 1.0 - (delta * linearFactor * 1.5);
-                        tGam = 1.0 + (delta * linearFactor * 2.0);
-                        tHig = 1.0 - (delta * linearFactor * 0.8);
-                        tCon = 1.0 + (linearFactor * 0.4);
-                        tSat = 1.0 + (delta * linearFactor * 0.12);
-                        tVib = 1.0 + (delta * linearFactor * 0.4);
-                    }
-
-                    const lerp = (cur, tar) => parseFloat(cur) * 0.85 + tar * 0.15;
-                    inputs.bri.value = lerp(inputs.bri.value, tBri);
-                    inputs.sha.value = lerp(inputs.sha.value, tSha);
-                    inputs.hig.value = lerp(inputs.hig.value, tHig);
-                    inputs.con.value = lerp(inputs.con.value, tCon);
-                    inputs.gam.value = lerp(inputs.gam.value, tGam);
-                    inputs.sat.value = lerp(inputs.sat.value, tSat);
-                    inputs.vib.value = lerp(inputs.vib.value, tVib);
+                    syncOverlays(); // Ensure alignment before processing
                     
-                    upd(true);
-                } catch(e) {}
+                    const n = parseInt(inputs.res.value);
+                    if(hiddenCanvas.width !== n) { hiddenCanvas.width = n; hiddenCanvas.height = n; }
+                    
+                    // Draw entire video frame to N x N canvas (squashed)
+                    hCtx.drawImage(v, 0, 0, n, n);
+                    const frame = hCtx.getImageData(0, 0, n, n);
+                    const d = frame.data;
+                    
+                    // Dynamic blur
+                    const blurVal = Math.max(0, 500 / n / 2); 
+                    mCanvas.style.filter = "blur(" + blurVal + "px)";
+
+                    // Resize matrix canvas to match grid logic (internal res)
+                    if(mCanvas.width !== n) { mCanvas.width = n; mCanvas.height = n; }
+                    
+                    const mImgData = mCtx.createImageData(n, n);
+                    const md = mImgData.data;
+
+                    const p = getPresetParams();
+                    const lf = parseInt(inputs.lv.value) * 0.1;
+                    const presetName = inputs.preset.value;
+                    
+                    matrixStats = { bri:0, sha:0, gam:0, con:0, sat:0, count:0 };
+
+                    for(let i=0; i < d.length; i+=4) {
+                        const r = d[i], g = d[i+1], b = d[i+2];
+                        const lum = (0.2126*r + 0.7152*g + 0.0722*b) / 255;
+                        const delta = 0.5 - lum;
+                        
+                        matrixStats.bri += (1.0 + (delta * lf * p.b));
+                        matrixStats.sha += (1.0 - (delta * lf * p.s));
+                        matrixStats.gam += (1.0 + (delta * lf * p.g));
+                        matrixStats.con += (1.0 + (lf * p.c));
+                        matrixStats.sat += (1.0 + (delta * lf * p.sa));
+                        matrixStats.count++;
+
+                        // Matrix Pixel Logic
+                        if(lum < 0.3) {
+                            // Deep black crush
+                            md[i] = 0; md[i+1] = 0; md[i+2] = 0; 
+                            // If SPORT mode, apply SUPER BLACK
+                            let alphaFactor = (presetName === 'SPORT') ? 3.0 : 1.2;
+                            md[i+3] = (0.35 - lum) * lf * 255 * alphaFactor; 
+                        } else if(lum > 0.6) {
+                            md[i] = 255; md[i+1] = 255; md[i+2] = 255; 
+                            md[i+3] = (lum - 0.6) * lf * 255 * 0.8;
+                        } else {
+                            md[i+3] = 0;
+                        }
+                    }
+                    
+                    mCtx.putImageData(mImgData, 0, 0); 
+                    mCanvas.style.display = 'block';
+
+                    if(matrixStats.count > 0) {
+                         const lerp = (cur, tar) => parseFloat(cur) * 0.85 + tar * 0.15;
+                         inputs.bri.value = lerp(inputs.bri.value, matrixStats.bri / matrixStats.count);
+                         inputs.sha.value = lerp(inputs.sha.value, matrixStats.sha / matrixStats.count);
+                         inputs.gam.value = lerp(inputs.gam.value, matrixStats.gam / matrixStats.count);
+                         inputs.con.value = lerp(inputs.con.value, matrixStats.con / matrixStats.count);
+                         inputs.sat.value = lerp(inputs.sat.value, matrixStats.sat / matrixStats.count);
+                         upd(true);
+                    }
+
+                } catch(e) { console.error(e); }
+            }
+
+            function getPresetParams() {
+                 const PR = {
+                    // INVERTED LOGIC: SPORT is now the Dark/Crushed one. CINEMA is the Bright one.
+                    SPORT: { b: 0.95, s: 1.8, g: 1.3, h: 1.0, c: 1.5, sa: 0.2, v: 0.2 }, 
+                    CINEMA:  { b: 1.3, s: 0.2, g: 0.9, h: 0.5, c: 1.1, sa: 0.3, v: 0.6 },
+                    vivid:  { b: 1.2, s: 1.2, g: 1.1, h: 1.0, c: 1.1, sa: 0.12, v: 0.4 },
+                    game:   { b: 1.5, s: 1.4, g: 1.8, h: 1.0, c: 0.9, sa: 0.40, v: 0.6 }
+                };
+                return PR[inputs.preset.value] || PR.CINEMA;
+            }
+
+            function applyParams(delta, linearFactor, p) {
+                // Modified Formula
+                let tSha = 1.0 - (delta * linearFactor * p.s); 
+                let tBri = 1.0 + (delta * linearFactor * p.b);
+                let tGam = 1.0 + (delta * linearFactor * p.g);
+                let tHig = 1.0 - (delta * linearFactor * p.h);
+                let tCon = 1.0 + (linearFactor * p.c);
+                let tSat = 1.0 + (delta * linearFactor * p.sa);
+                let tVib = 1.0 + (delta * linearFactor * p.v);
+
+                const lerp = (cur, tar) => parseFloat(cur) * 0.85 + tar * 0.15;
+                inputs.bri.value = lerp(inputs.bri.value, tBri);
+                inputs.sha.value = lerp(inputs.sha.value, tSha);
+                inputs.hig.value = lerp(inputs.hig.value, tHig);
+                inputs.con.value = lerp(inputs.con.value, tCon);
+                inputs.gam.value = lerp(inputs.gam.value, tGam);
+                inputs.sat.value = lerp(inputs.sat.value, tSat);
+                inputs.vib.value = lerp(inputs.vib.value, tVib);
             }
 
             function upd(isAuto = false) {
                 const comp = inputs.comp.value;
                 if(comp !== 'none') { vMainPane.className = 'video-pane pane-half'; vCompPane.style.display = 'block'; vCompPane.style.width = '50%'; } 
                 else { vMainPane.className = 'video-pane pane-full'; vCompPane.style.display = 'none'; vCompPane.style.width = '0'; }
-                const ar = inputs.ar.value; if(ar.startsWith('scale')) { v.style.objectFit = 'contain'; v.style.transform = "scale("+ar.split('_')[1]+")"; } 
-                else { v.style.objectFit = ar; v.style.transform = 'scale(1)'; }
+                
+                // Handle AR and Scale
+                const ar = inputs.ar.value; 
+                let transformVal = 'scale(1)';
+                
+                if(ar.startsWith('scale')) { 
+                    v.style.objectFit = 'contain'; 
+                    transformVal = "scale("+ar.split('_')[1]+")"; 
+                } 
+                else { 
+                    v.style.objectFit = ar; 
+                    transformVal = 'scale(1)'; 
+                }
+                
+                // Apply transforms to Video AND Layers (to sync Zoom)
+                v.style.transform = transformVal;
+                gridLayer.style.transform = transformVal;
+                mCanvas.style.transform = transformVal;
+                
+                // Force sync if format changed
+                if(!isAuto) syncOverlays();
+
                 canvas.style.opacity = inputs.ambi.checked ? 1 : 0;
                 
                 const sha = (parseFloat(inputs.sha.value) - 1) * 45; 
@@ -365,13 +560,53 @@
                 if(eqFilters.length) { const eqKeys = ['eq_b', 'eq_lb', 'eq_m', 'eq_mh', 'eq_h']; eqFilters.forEach((filter, i) => { filter.gain.value = inputs[eqKeys[i]].value; document.getElementById('lbl_'+eqKeys[i]).innerText = inputs[eqKeys[i]].value + 'dB'; }); }
             }
             
+            // Grid and Matrix UI Logic
+            const updateGridVisuals = () => {
+                const val = inputs.res.value;
+                if(val === 'none' || !inputs.showGrid.checked) {
+                    gridLayer.style.display = 'none';
+                } else {
+                    gridLayer.style.display = 'block';
+                    const cols = parseInt(val);
+                    gridLayer.style.backgroundSize = (100/cols) + "% " + (100/cols) + "%"; 
+                    gridLayer.style.backgroundImage = "linear-gradient(to right, rgba(0,255,0,0.5) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,255,0,0.5) 1px, transparent 1px)";
+                    if(cols===1) gridLayer.style.border = "1px solid rgba(0,255,0,0.5)"; else gridLayer.style.border = "none";
+                    syncOverlays();
+                }
+            };
+            
+            inputs.res.onchange = () => { updateGridVisuals(); };
+            inputs.showGrid.onchange = () => { updateGridVisuals(); };
+            
+            inputs.matrix.onchange = () => {
+                if(inputs.matrix.checked && inputs.res.value === 'none') {
+                    alert("Seleziona una Risoluzione per attivare Active Dimming.");
+                    inputs.matrix.checked = false;
+                }
+                if(!inputs.matrix.checked) mCanvas.style.display = 'none';
+                else syncOverlays();
+            };
+
+            inputs.hdr.addEventListener('change', () => { if(inputs.hdr.value === 'custom') { ['bri','sha','gam','hig','con','sat','vib'].forEach(k => inputs[k].value = 1); upd(false); } });
             Object.values(inputs).forEach(i => i.oninput = () => upd(false));
             setInterval(processAdaptiveHDR, 100);
+            
+            setInterval(() => {
+                if(v.duration && v.buffered.length) {
+                    let end = 0;
+                    for(let i=0; i<v.buffered.length; i++) { if(v.buffered.start(i) <= v.currentTime && v.buffered.end(i) >= v.currentTime) { end = v.buffered.end(i); break; } }
+                    let buf = end - v.currentTime; document.getElementById('i_buf').innerText = (buf > 0 ? buf.toFixed(1) : 0) + "s";
+                }
+            }, 500);
+
             document.querySelectorAll('.tab').forEach(t => t.onclick = () => { document.querySelectorAll('.tab, .panel-content').forEach(x => x.classList.remove('active')); t.classList.add('active'); document.getElementById('tab-'+t.dataset.tab).classList.add('active'); });
             gear.onclick = (e) => { e.stopPropagation(); panel.style.display = (panel.style.display == 'block' ? 'none' : 'block'); };
-            
+            document.addEventListener('keydown', e => { if(e.code === 'Space') { e.preventDefault(); if(v.paused) v.play(); else v.pause(); } });
+
             document.getElementById('rst_hard').onclick = () => {
-                localStorage.removeItem(storeKey); inputs.hdr.value = 'hdr_dv'; inputs.lv.value = '3'; inputs.comp.value = 'none'; inputs.sh.value = 'sh-med'; inputs.ar.value = 'contain';
+                localStorage.removeItem(storeKey); inputs.hdr.value = 'hdr_dv'; inputs.lv.value = '5'; inputs.preset.value = 'CINEMA'; inputs.comp.value = 'none'; inputs.sh.value = 'sh-med'; inputs.ar.value = 'contain'; 
+                inputs.res.value = 'none'; inputs.matrix.checked = false; inputs.showGrid.checked = false;
+                gridLayer.style.display = 'none'; mCanvas.style.display = 'none';
                 inputs.ambi.checked = inputs.night.checked = false; ['bri','sha','gam','hig','con','sat','vib','vol'].forEach(k => inputs[k].value = 1); ['eq_b', 'eq_lb', 'eq_m', 'eq_mh', 'eq_h'].forEach(k => inputs[k].value = 0);
                 inputs.sync.value = 0; upd(false);
             };
@@ -381,9 +616,9 @@
             [b_prev, b_next].forEach(b => { b.onclick = (e) => { e.stopPropagation(); doSkip(b == b_prev ? -10 : 10); }; b.ondblclick = (e) => e.stopPropagation(); });
             function loopAmbi() { if(!v.paused && document.getElementById('ambi_chk').checked) { try { if(canvas.width!==64) { canvas.width=64; canvas.height=36; } ctx.drawImage(v, 0, 0, 64, 36); } catch(e){} } requestAnimationFrame(loopAmbi); }
             loopAmbi();
-            v.addEventListener('timeupdate', () => { if(v.currentTime > 5) localStorage.setItem(storeKey, v.currentTime); document.getElementById('i_buf').innerText = (v.buffered.length ? (v.buffered.end(v.buffered.length-1)-v.currentTime).toFixed(1) : 0) + "s"; document.getElementById('i_res').innerText = v.videoWidth + "x" + v.videoHeight; });
+            v.addEventListener('timeupdate', () => { if(v.currentTime > 5) localStorage.setItem(storeKey, v.currentTime); document.getElementById('i_res').innerText = v.videoWidth + "x" + v.videoHeight; });
             v.addEventListener('loadedmetadata', () => { const t = localStorage.getItem(storeKey); if(t && t > 10 && t < v.duration-30) { document.getElementById('resume_box').classList.add('visible'); document.getElementById('resume_yes').onclick = () => { v.currentTime = t; v.play(); document.getElementById('resume_box').classList.remove('visible'); }; document.getElementById('resume_no').onclick = () => document.getElementById('resume_box').classList.remove('visible'); } });
-            document.addEventListener('mousemove', () => { clearTimeout(idleTimer); gear.classList.remove('fade-out'); b_prev.classList.remove('fade-out'); b_next.classList.remove('fade-out'); document.body.style.cursor = 'default'; idleTimer = setTimeout(() => { if(panel.style.display == 'block') return; gear.classList.add('fade-out'); b_prev.classList.add('fade-out'); b_next.classList.add('fade-out'); if(!v.paused) document.body.style.cursor = 'none'; }, 2000); });
+            document.addEventListener('mousemove', () => { clearTimeout(idleTimer); gear.classList.remove('fade-out'); b_prev.classList.remove('fade-out'); b_next.classList.remove('fade-out'); document.body.style.cursor = 'default'; idleTimer = setTimeout(() => { if(panel.style.display == 'block' || v.paused) return; gear.classList.add('fade-out'); b_prev.classList.add('fade-out'); b_next.classList.add('fade-out'); if(!v.paused) document.body.style.cursor = 'none'; }, 2000); });
         </script></body></html>`;
         window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
     }
