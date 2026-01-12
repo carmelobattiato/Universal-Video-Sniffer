@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Universal Video Sniffer: Speedster (v13.7 WebGL Syntax Fix)
+// @name         Universal Video Sniffer: Speedster (v13.6 Mac GLSL Fix)
 // @namespace    http://tampermonkey.net/
-// @version      13.7
-// @description  Fix newline su #define shader per Mac M2. Log Manager & Safe Zones.
+// @version      13.6
+// @description  Fix sintassi GLSL abs(int) per Apple Silicon. Log Manager & Safe Zones.
 // @author       Carmelo Battiato
 // @match        *://*/*
 // @grant        GM_setClipboard
@@ -17,8 +17,8 @@
 
 (function() {
     'use strict';
-    console.log("Speedster v13.7 - Mac Shader Fix");
-    const VER = "13.7";
+    console.log("Speedster v13.6 - Mac Stable");
+    const VER = "13.6";
     const CFG = { ext: /\.(mp4|m3u8|flv|webm|mov|avi|mkv|mpd)(\?|$)/i, ign: /doubleclick|googlead|analytics|adsystem|segment|prebid/i };
     const FOUND = new Set(), ACTIVE = new Set();
     const STORE_KEY = "uvs_v13_config";
@@ -443,41 +443,25 @@
                 compile() {
                     if(!this.gl) return;
                     logger(0, "Compilazione Shader: " + this.cfg.algo);
+                    const vSh = 'attribute vec2 p;varying vec2 uv;void main(){uv=p*0.5+0.5;uv.y=1.0-uv.y;gl_Position=vec4(p,0,1);}';
 
-                    // VERTEX SHADER
-                    const vSh = [
-                        'attribute vec2 p;',
-                        'varying vec2 uv;',
-                        'void main() {',
-                        '  uv = p * 0.5 + 0.5;',
-                        '  uv.y = 1.0 - uv.y;',
-                        '  gl_Position = vec4(p, 0, 1);',
-                        '}'
-                    ].join('\n');
-
-                    // FRAGMENT SHADER
-                    // We must ensure #define comes immediately after precision
-                    let fSh = 'precision mediump float;\n';
-                    // Inject #define here, ensuring newline before and after
-                    fSh += '#define RAD ' + Math.max(1, Math.ceil(this.cfg.radius)) + '.0\n';
-
-                    fSh += 'uniform sampler2D t;\n';
-                    fSh += 'uniform vec2 r;\n';
-                    fSh += 'varying vec2 uv;\n';
-                    fSh += 'uniform float sharp;\n';
+                    // FIXED: Define Radius as CONSTANT for WebGL 1 loop compatibility
+                    let fSh = 'precision mediump float;uniform sampler2D t;uniform vec2 r;varying vec2 uv;uniform float sharp;';
+                    // Inject Constant Radius
+                    fSh += '#define RAD ' + Math.max(1, Math.ceil(this.cfg.radius)) + '.0\\n';
 
                     if(this.cfg.algo === 'bicubic') {
-                        fSh += 'float w(float x) { float a = -0.5; x = abs(x); if(x < 1.0) return (a + 2.0) * x * x * x - (a + 3.0) * x * x + 1.0; if(x < 2.0) return a * x * x * x - 5.0 * a * x * x + 8.0 * a * x - 4.0 * a; return 0.0; }\n';
-                        fSh += 'vec4 smp(vec2 p) { vec2 tex = p / r; return texture2D(t, tex); }\n';
-                        fSh += 'void main() { vec2 uvP = uv * r; vec2 ip = floor(uvP); vec2 fp = fract(uvP); vec4 sum = vec4(0); float wSum = 0.0; for(int y = -1; y <= 2; y++) { for(int x = -1; x <= 2; x++) { float wt = w(float(x) - fp.x) * w(float(y) - fp.y); sum += smp(ip + vec2(float(x), float(y))) * wt; wSum += wt; } } gl_FragColor = sum / wSum; }\n';
+                        fSh += 'float w(float x){float a=-0.5;x=abs(x);if(x<1.0)return(a+2.0)*x*x*x-(a+3.0)*x*x+1.0;if(x<2.0)return a*x*x*x-5.0*a*x*x+8.0*a*x-4.0*a;return 0.0;}';
+                        fSh += 'vec4 smp(vec2 p){vec2 tex=p/r;return texture2D(t,tex);}';
+                        fSh += 'void main(){vec2 uvP=uv*r;vec2 ip=floor(uvP);vec2 fp=fract(uvP);vec4 sum=vec4(0);float wSum=0.0;for(int y=-1;y<=2;y++){for(int x=-1;x<=2;x++){float wt=w(float(x)-fp.x)*w(float(y)-fp.y);sum+=smp(ip+vec2(float(x),float(y)))*wt;wSum+=wt;}}gl_FragColor=sum/wSum;}';
                     } else {
-                        // Lanczos with Fixed Loop and Correct ABS usage for Metal
-                        fSh += 'float sinc(float x) { if(x == 0.0) return 1.0; return sin(3.14159 * x) / (3.14159 * x); }\n';
-                        fSh += 'float l(float x) { if(abs(x) < RAD) return sinc(x) * sinc(x / RAD); return 0.0; }\n';
-                        fSh += 'void main() { vec2 uvP = uv * r; vec2 ip = floor(uvP); vec2 fp = fract(uvP); vec4 sum = vec4(0); float wSum = 0.0; \n';
-                        // Use ABS on FLOAT(y) not INT(y)
-                        fSh += 'for(int y = -4; y <= 4; y++) { if(abs(float(y)) >= RAD) continue; for(int x = -4; x <= 4; x++) { if(abs(float(x)) >= RAD) continue; float wt = l(float(x) - fp.x) * l(float(y) - fp.y); sum += texture2D(t, (ip + vec2(float(x), float(y))) / r) * wt; wSum += wt; } } vec4 col = sum / wSum; \n';
-                        fSh += 'if(sharp > 0.0) { vec4 c = texture2D(t, uv); col = mix(col, c + (col - c) * (1.0 + sharp), 0.5); } gl_FragColor = col; }\n';
+                        // Lanczos with Fixed Loop Limits
+                        fSh += 'float sinc(float x){if(x==0.0)return 1.0;return sin(3.14159*x)/(3.14159*x);}';
+                        fSh += 'float l(float x){if(abs(x)<RAD)return sinc(x)*sinc(x/RAD);return 0.0;}';
+                        fSh += 'void main(){vec2 uvP=uv*r;vec2 ip=floor(uvP);vec2 fp=fract(uvP);vec4 sum=vec4(0);float wSum=0.0;int ir=int(RAD);';
+                        // Loop using constant ir derived from #define - ABS applied to FLOAT
+                        fSh += 'for(int y=-4;y<=4;y++){ if(abs(float(y))>=RAD) continue; for(int x=-4;x<=4;x++){ if(abs(float(x))>=RAD) continue; float wt=l(float(x)-fp.x)*l(float(y)-fp.y);sum+=texture2D(t,(ip+vec2(float(x),float(y)))/r)*wt;wSum+=wt;}}vec4 col=sum/wSum;';
+                        fSh += 'if(sharp>0.0){vec4 c=texture2D(t,uv);col=mix(col,c+(col-c)*(1.0+sharp),0.5);}gl_FragColor=col;}';
                     }
 
                     const vs = this.gl.createShader(this.gl.VERTEX_SHADER); this.gl.shaderSource(vs, vSh); this.gl.compileShader(vs);
@@ -1015,4 +999,19 @@
     X.open = function(m, u) { this._u = u; return op.apply(this, arguments) };
     X.send = function() { if (this._u && CFG.ext.test(this._u) && !CFG.ign.test(this._u)) add(this._u, 'XHR'); return se.apply(this, arguments) };
     const oF = window.fetch; window.fetch = async (i, c) => { let u = i.url || i; if (u && CFG.ext.test(u) && !CFG.ign.test(u)) add(u, 'FETCH'); return oF(i, c) };
+})();// ==UserScript==
+// @name         New Userscript
+// @namespace    http://tampermonkey.net/
+// @version      2026-01-11
+// @description  try to take over the world!
+// @author       You
+// @match        https://*/*
+// @icon         data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // Your code here...
 })();
