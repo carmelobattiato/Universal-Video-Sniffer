@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Universal Video Sniffer: Speedster (v12.5 Central Safe Zone)
+// @name         Universal Video Sniffer: Speedster (v13.7 WebGL Syntax Fix)
 // @namespace    http://tampermonkey.net/
-// @version      12.5
-// @description  Safe Zone centrale per Play/Pause senza fullscreen accidentale. Default CINEMA.
+// @version      13.7
+// @description  Fix newline su #define shader per Mac M2. Log Manager & Safe Zones.
 // @author       Carmelo Battiato
 // @match        *://*/*
 // @grant        GM_setClipboard
@@ -17,11 +17,11 @@
 
 (function() {
     'use strict';
-    console.log("Speedster v12.5");
-    const VER = "12.5";
+    console.log("Speedster v13.7 - Mac Shader Fix");
+    const VER = "13.7";
     const CFG = { ext: /\.(mp4|m3u8|flv|webm|mov|avi|mkv|mpd)(\?|$)/i, ign: /doubleclick|googlead|analytics|adsystem|segment|prebid/i };
     const FOUND = new Set(), ACTIVE = new Set();
-    const STORE_KEY = "uvs_v12_user_config";
+    const STORE_KEY = "uvs_v13_config";
 
     GM_addStyle(`
         #uvs-c{position:fixed;top:60px;left:50%;transform:translateX(-50%);width:500px;background:#0f0f0f;color:#ccc;z-index:2147483647;border-radius:8px;box-shadow:0 10px 40px #000;font-family:system-ui,sans-serif;display:none;flex-direction:column;border:1px solid #333;font-size:13px}
@@ -145,15 +145,16 @@
             video { width: 100% !important; height: 100% !important; object-fit: contain; transition: transform 0.3s; }
             #grid_layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20; display: none; mix-blend-mode: difference; transition: transform 0.3s; }
             #matrix_layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15; display: none; mix-blend-mode: hard-light; opacity: 1; image-rendering: auto; will-change: contents; transition: filter 0.2s, transform 0.3s; }
+
+            #up_canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; z-index: 1; pointer-events: none; display: none; }
+
             #v_comp_pane { background: #000; position: absolute; right: 0; width: 0; height: 100%; z-index: 11; border-left: 2px solid #4db8ff; transition: width 0.3s ease; display: none; }
             #v_comp { width: 100%; height: 100%; object-fit: contain; }
             .pane-label { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.7); padding: 4px 10px; border-radius: 4px; font-size: 10px; font-weight: 800; color: #4db8ff; z-index: 15; text-transform: uppercase; border: 1px solid #333; }
 
-            /* UI Elements - High Z-Index to stay clickable */
             .gear-btn{position:absolute;top:20px;left:20px;font-size:24px;cursor:pointer;z-index:2147483647 !important;text-shadow:0 2px 4px #000;opacity:0.7;transition:0.3s}
 
-            /* Safe Zones - Blocks DblClick/Mousedown propagation - Z-Index below buttons */
-            .safe-zone { position: absolute; z-index: 2147483646; transition: 0.2s; /* background: rgba(255,0,0,0.2); debug */ }
+            .safe-zone { position: absolute; z-index: 2147483646; transition: 0.2s; }
             .sz-nav { top: 50%; transform: translateY(-50%); width: 140px; height: 140px; }
             .sz-left { left: 0; }
             .sz-right { right: 0; }
@@ -163,7 +164,7 @@
             .skip-btn { position: absolute; top: 50%; transform: translateY(-50%); width: 42px; height: 42px; background: rgba(0,0,0,0.5); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 17px; cursor: pointer; transition: 0.2s; z-index: 2147483647 !important; border: 1px solid rgba(255,255,255,0.2); }
             .skip-prev { left: 20px; } .skip-next { right: 20px; }
             .feedback { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); padding: 15px 30px; border-radius: 40px; font-size: 32px; font-weight: 900; z-index: 2147483647; pointer-events: none; opacity: 0; transition: 0.1s; }
-            .overlay{position:absolute;top:60px;left:20px;background:rgba(18,18,18,0.98);padding:0;border-radius:12px;z-index:2147483647 !important;width:320px;backdrop-filter:blur(10px);box-shadow:0 10px 30px #000;display:none;animation:fadeIn .2s; border:1px solid #333; overflow:hidden}
+            .overlay{position:absolute;top:60px;left:20px;background:rgba(18,18,18,0.98);padding:0;border-radius:12px;z-index:2147483647 !important;width:340px;backdrop-filter:blur(10px);box-shadow:0 10px 30px #000;display:none;animation:fadeIn .2s; border:1px solid #333; overflow:hidden}
             @keyframes fadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
             .tabs { display:flex; background:#0a0a0a; border-bottom:1px solid #333; }
             .tab { flex:1; text-align:center; padding:10px 0; cursor:pointer; font-size:11px; font-weight:bold; color:#777; transition:0.2s; text-transform:uppercase; }
@@ -171,9 +172,8 @@
             .panel-content { padding:15px; display:none; max-height:450px; overflow-y:auto; scrollbar-width: thin; scrollbar-color: #333 transparent; }
             .panel-content.active { display:block; }
             .row { margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; font-size:11px; gap: 5px; }
-            label { width:55px; color:#aaa; font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+            label { width:65px; color:#aaa; font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
-            /* Slider Wrapper to hold Dots */
             .sl-w { position: relative; flex:1; height: 16px; display:flex; align-items:center; }
             input[type=range] { width:100%; height:4px; cursor:pointer; accent-color:#4db8ff; margin:0; }
             .dot { position: absolute; width: 4px; height: 4px; background: #e74c3c; border-radius: 50%; top: -3px; pointer-events: none; z-index: 5; transform: translateX(-50%); box-shadow: 0 0 2px #000; transition: left 0.2s; }
@@ -182,13 +182,18 @@
             .lim:focus { color: #fff; border-color: #4db8ff; outline: none; background: #333; }
 
             select { background:#222; color:#fff; border:1px solid #444; padding:4px; border-radius:4px; font-size:11px; flex:1; outline:none }
-            .tit { font-weight:800; margin:15px 0 8px 0; color:#888; border-bottom:1px solid #333; padding-bottom:4px; text-transform:uppercase; font-size:10px; }
+            .tit { font-weight:800; margin:15px 0 8px 0; color:#888; border-bottom:1px solid #333; padding-bottom:4px; text-transform:uppercase; font-size:10px; cursor:pointer }
             .val-label { width:32px; text-align:right; font-family:monospace; color:#4db8ff; font-size:10px; }
             .btn-row { display: flex; gap: 5px; margin-top: 10px; }
             button.main-btn { flex: 1; background:#333; border:none; color:#fff; padding:10px; cursor:pointer; font-weight:bold; font-size:11px; text-transform:uppercase; border-radius: 6px; transition: 0.2s }
             button.main-btn:hover { background: #444; }
             #rst_hard { background:#b71c1c; }
             #save_cfg { background:#2ea043; }
+
+            #sec-up { display: none; background: #111; padding: 10px; border-radius: 4px; margin-bottom: 10px; border: 1px solid #222; }
+            #sec-up.open { display: block; }
+            .warn { color: #f39c12; font-size: 10px; margin-bottom: 8px; display: block; }
+            .err { color: #e74c3c; font-size: 10px; font-weight: bold; }
 
             .fade-out { opacity: 0 !important; pointer-events: none !important; }
             .resume-prompt { position: absolute; bottom: 80px; left: 20px; background: #2ea043; padding: 10px 15px; border-radius: 8px; z-index: 2147483647 !important; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 15px #000; opacity: 0; transform: translateY(20px); transition: all 0.3s; pointer-events: none; font-weight: 600; }
@@ -198,12 +203,24 @@
             .slider:before { position: absolute; content: ""; height: 10px; width: 10px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
             input:checked + .slider { background-color: #4db8ff; }
             input:checked + .slider:before { transform: translateX(14px); }
+
+            /* Log Styles */
+            #log_win { height: 350px; background: #000; border: 1px solid #333; overflow-y: scroll; font-family: 'Courier New', monospace; font-size: 10px; padding: 5px; color: #ccc; margin-bottom: 10px; scrollbar-width: thin; scrollbar-color: #444 #111; }
+            .log-line { border-bottom: 1px solid #111; padding: 1px 0; display: block; word-break: break-all; }
+            .l-trace { color: #666; } .l-debug { color: #f1c40f; } .l-info { color: #2ea043; } .l-err { color: #e74c3c; font-weight: bold; }
+            #log_btns { display: flex; gap: 5px; }
+            #log_btns button { background: #222; border: 1px solid #444; color: #aaa; flex: 1; padding: 6px; cursor: pointer; border-radius: 4px; font-size: 10px; text-transform: uppercase; font-weight: bold; transition: 0.2s }
+            #log_btns button:hover { background: #333; color: #fff; }
+            #log_copy:hover { border-color: #2ea043; color: #2ea043 !important; }
+            #log_down:hover { border-color: #3498db; color: #3498db !important; }
+            #log_clr:hover { border-color: #e74c3c; color: #e74c3c !important; }
         </style></head><body>
         ${svgFilters}
         <div id="wrapper">
             <div id="viewport">
                 <div class="video-pane" id="v_main_pane">
                     <video id="p" controls crossorigin="anonymous" playsinline></video>
+                    <canvas id="up_canvas"></canvas>
                     <canvas id="matrix_layer"></canvas>
                     <div id="grid_layer"></div>
                 </div>
@@ -221,10 +238,37 @@
 
             <div class="feedback" id="feedback"></div>
             <div class="resume-prompt" id="resume_box"><span id="resume_txt">Riprendere?</span><button style="background:#fff;color:#2ea043;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-weight:bold" id="resume_yes">Sì</button><span style="cursor:pointer;margin-left:8px" id="resume_no">×</span></div>
+
             <div class="overlay" id="panel">
-                <div class="tabs"><div class="tab active" data-tab="vid">Video</div><div class="tab" data-tab="aud">Audio</div><div class="tab" data-tab="inf">Info</div></div>
+                <div class="tabs"><div class="tab active" data-tab="vid">Video</div><div class="tab" data-tab="aud">Audio</div><div class="tab" data-tab="log">Logs</div><div class="tab" data-tab="inf">Info</div></div>
                 <div class="panel-content active" id="tab-vid">
-                    <div class="tit">HDR Engine (100% Dynamic Master)</div>
+                    <div class="tit" id="toggle_up">Upscaling (Sperimentale) ▼</div>
+                    <div id="sec-up">
+                        <span class="warn">⚠️ Alto consumo GPU. Nessun automatismo.</span>
+                        <div class="row"><label>Stato</label><label class="switch"><input type="checkbox" id="up_chk"><span class="slider"></span></label></div>
+                        <div class="row"><label>Preset</label><select id="up_preset">
+                            <option value="perf">Performance</option>
+                            <option value="bal" selected>Balanced</option>
+                            <option value="qual">Quality</option>
+                            <option value="cust">Custom</option>
+                        </select></div>
+                        <div class="row"><label>Output</label><select id="up_res">
+                            <option value="native" selected>Nativa Schermo</option>
+                            <option value="1080">Full HD (1080p)</option>
+                            <option value="2160">4K (2160p)</option>
+                            <option value="4320">8K (4320p)</option>
+                        </select></div>
+                        <div class="row"><label>Algo</label><select id="up_algo">
+                            <option value="bicubic">Bicubic</option>
+                            <option value="lanczos2" selected>Lanczos 2</option>
+                            <option value="lanczos3">Lanczos 3</option>
+                        </select></div>
+                        <div class="row"><label>Radius</label><input type="range" id="up_rad" min="1" max="4" step="0.1" value="2"><span id="lbl_up_rad" class="val-label">2.0</span></div>
+                        <div class="row"><label>Sharpen</label><input type="range" id="up_sharp" min="0" max="1" step="0.1" value="0"><span id="lbl_up_sharp" class="val-label">0.0</span></div>
+                        <div class="row"><label>Stat</label><span id="up_stat" style="color:#aaa;font-size:10px">OFF</span></div>
+                    </div>
+
+                    <div class="tit">HDR Engine</div>
                     <div class="row"><label>Standard</label><select id="hdr_mode">
                         <option value="custom">Custom (Libero)</option>
                         <option value="hdr_std">HDR Standard (Dyn)</option>
@@ -284,6 +328,21 @@
                     <div class="row"><label>4kHz</label><input type="number" class="lim min" data-id="eq_mh" value="-12" step="1"><div class="sl-w"><span class="dot d-min"></span><input type="range" id="eq_mh" min="-12" max="12" step="1" value="0"><span class="dot d-max"></span></div><input type="number" class="lim max" data-id="eq_mh" value="12" step="1"><span id="lbl_eq_mh" class="val-label">0dB</span></div>
                     <div class="row"><label>12kHz</label><input type="number" class="lim min" data-id="eq_h" value="-12" step="1"><div class="sl-w"><span class="dot d-min"></span><input type="range" id="eq_h" min="-12" max="12" step="1" value="0"><span class="dot d-max"></span></div><input type="number" class="lim max" data-id="eq_h" value="12" step="1"><span id="lbl_eq_h" class="val-label">0dB</span></div>
                 </div>
+                <div class="panel-content" id="tab-log">
+                    <div class="tit">Logs di Sistema</div>
+                    <div class="row"><label>Livello</label><select id="log_lvl">
+                        <option value="0">TRACE (Tutto)</option>
+                        <option value="1">DEBUG (Tecnico)</option>
+                        <option value="2" selected>INFO (Standard)</option>
+                        <option value="3">ERROR (Critico)</option>
+                    </select></div>
+                    <div id="log_win"></div>
+                    <div id="log_btns">
+                        <button id="log_copy">COPY</button>
+                        <button id="log_down">DOWNLOAD</button>
+                        <button id="log_clr">CLEAR</button>
+                    </div>
+                </div>
                 <div class="panel-content" id="tab-inf">
                     <div class="tit">Software Info</div>
                     <div class="row"><span>Versione</span><span class="info-val">v${VER} Master</span></div>
@@ -308,6 +367,179 @@
 
         <script src="https://cdn.jsdelivr.net/npm/hls.js"></script><script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
         <script>
+            // --- LOGGER SYSTEM ---
+            const LOG_LEVELS = { TRACE: 0, DEBUG: 1, INFO: 2, ERROR: 3 };
+            let currentLogLevel = 2; // Default Info
+            const logWin = document.getElementById('log_win');
+
+            function logger(level, msg) {
+                if (level < currentLogLevel) return;
+                console.log("[Speedster]", msg); // To browser console
+
+                const span = document.createElement('span');
+                span.className = 'log-line';
+                const ts = new Date().toLocaleTimeString().split(' ')[0];
+
+                if (level === 0) { span.classList.add('l-trace'); span.innerText = \`[TRC] \${ts} > \${msg}\`; }
+                else if (level === 1) { span.classList.add('l-debug'); span.innerText = \`[DBG] \${ts} > \${msg}\`; }
+                else if (level === 2) { span.classList.add('l-info'); span.innerText = \`[INF] \${ts} > \${msg}\`; }
+                else { span.classList.add('l-err'); span.innerText = \`[ERR] \${ts} > \${msg}\`; }
+
+                logWin.appendChild(span);
+                logWin.scrollTop = logWin.scrollHeight;
+            }
+
+            document.getElementById('log_lvl').onchange = (e) => {
+                currentLogLevel = parseInt(e.target.value);
+                logger(2, "Livello log impostato a: " + e.target.options[e.target.selectedIndex].text);
+            };
+
+            // LOG BUTTONS LOGIC
+            document.getElementById('log_copy').onclick = async (e) => {
+                const txt = Array.from(logWin.children).map(c => c.innerText).join('\\n');
+                try {
+                    await navigator.clipboard.writeText(txt);
+                    e.target.innerText = "COPIATO!";
+                } catch(err) {
+                    GM_setClipboard(txt); // Fallback
+                    e.target.innerText = "COPIATO (GM)!";
+                }
+                setTimeout(() => e.target.innerText = "COPY", 1500);
+            };
+
+            document.getElementById('log_down').onclick = (e) => {
+                const txt = Array.from(logWin.children).map(c => c.innerText).join('\\n');
+                const blob = new Blob([txt], {type: 'text/plain'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = "speedster_log_" + new Date().toLocaleTimeString().replace(/:/g,'') + ".txt";
+                a.click();
+                URL.revokeObjectURL(url);
+            };
+
+            document.getElementById('log_clr').onclick = () => { logWin.innerHTML = ''; logger(2, "Log puliti."); };
+
+            // Initial Log
+            logger(2, "Speedster v${VER} inizializzato.");
+
+            // WEBGL UPSCALER CLASS
+            class WebGLUpscaler {
+                constructor(video, canvas) {
+                    this.video = video; this.canvas = canvas; this.gl = null; this.prog = null; this.tex = null; this.raf = null;
+                    this.active = false; this.lastT = 0; this.frames = 0; this.fps = 0;
+                    this.cfg = { res: 'native', algo: 'lanczos2', radius: 2.0, sharp: 0.0 };
+                    this.maxTexSize = 4096; // Fallback
+                }
+                init() {
+                    if(this.active) return;
+                    this.gl = this.canvas.getContext('webgl', {preserveDrawingBuffer:false});
+                    if(!this.gl) { logger(3, "WebGL failed init"); return; }
+                    this.maxTexSize = this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE) || 4096;
+                    logger(1, "WebGL Init. MaxTex: " + this.maxTexSize);
+                    this.active = true; this.canvas.style.display = 'block';
+                    this.compile(); this.loop();
+                }
+                compile() {
+                    if(!this.gl) return;
+                    logger(0, "Compilazione Shader: " + this.cfg.algo);
+
+                    // VERTEX SHADER
+                    const vSh = [
+                        'attribute vec2 p;',
+                        'varying vec2 uv;',
+                        'void main() {',
+                        '  uv = p * 0.5 + 0.5;',
+                        '  uv.y = 1.0 - uv.y;',
+                        '  gl_Position = vec4(p, 0, 1);',
+                        '}'
+                    ].join('\n');
+
+                    // FRAGMENT SHADER
+                    // We must ensure #define comes immediately after precision
+                    let fSh = 'precision mediump float;\n';
+                    // Inject #define here, ensuring newline before and after
+                    fSh += '#define RAD ' + Math.max(1, Math.ceil(this.cfg.radius)) + '.0\n';
+
+                    fSh += 'uniform sampler2D t;\n';
+                    fSh += 'uniform vec2 r;\n';
+                    fSh += 'varying vec2 uv;\n';
+                    fSh += 'uniform float sharp;\n';
+
+                    if(this.cfg.algo === 'bicubic') {
+                        fSh += 'float w(float x) { float a = -0.5; x = abs(x); if(x < 1.0) return (a + 2.0) * x * x * x - (a + 3.0) * x * x + 1.0; if(x < 2.0) return a * x * x * x - 5.0 * a * x * x + 8.0 * a * x - 4.0 * a; return 0.0; }\n';
+                        fSh += 'vec4 smp(vec2 p) { vec2 tex = p / r; return texture2D(t, tex); }\n';
+                        fSh += 'void main() { vec2 uvP = uv * r; vec2 ip = floor(uvP); vec2 fp = fract(uvP); vec4 sum = vec4(0); float wSum = 0.0; for(int y = -1; y <= 2; y++) { for(int x = -1; x <= 2; x++) { float wt = w(float(x) - fp.x) * w(float(y) - fp.y); sum += smp(ip + vec2(float(x), float(y))) * wt; wSum += wt; } } gl_FragColor = sum / wSum; }\n';
+                    } else {
+                        // Lanczos with Fixed Loop and Correct ABS usage for Metal
+                        fSh += 'float sinc(float x) { if(x == 0.0) return 1.0; return sin(3.14159 * x) / (3.14159 * x); }\n';
+                        fSh += 'float l(float x) { if(abs(x) < RAD) return sinc(x) * sinc(x / RAD); return 0.0; }\n';
+                        fSh += 'void main() { vec2 uvP = uv * r; vec2 ip = floor(uvP); vec2 fp = fract(uvP); vec4 sum = vec4(0); float wSum = 0.0; \n';
+                        // Use ABS on FLOAT(y) not INT(y)
+                        fSh += 'for(int y = -4; y <= 4; y++) { if(abs(float(y)) >= RAD) continue; for(int x = -4; x <= 4; x++) { if(abs(float(x)) >= RAD) continue; float wt = l(float(x) - fp.x) * l(float(y) - fp.y); sum += texture2D(t, (ip + vec2(float(x), float(y))) / r) * wt; wSum += wt; } } vec4 col = sum / wSum; \n';
+                        fSh += 'if(sharp > 0.0) { vec4 c = texture2D(t, uv); col = mix(col, c + (col - c) * (1.0 + sharp), 0.5); } gl_FragColor = col; }\n';
+                    }
+
+                    const vs = this.gl.createShader(this.gl.VERTEX_SHADER); this.gl.shaderSource(vs, vSh); this.gl.compileShader(vs);
+                    const fs = this.gl.createShader(this.gl.FRAGMENT_SHADER); this.gl.shaderSource(fs, fSh); this.gl.compileShader(fs);
+
+                    if(!this.gl.getShaderParameter(fs, this.gl.COMPILE_STATUS)) { logger(3, this.gl.getShaderInfoLog(fs)); return; }
+
+                    this.prog = this.gl.createProgram(); this.gl.attachShader(this.prog, vs); this.gl.attachShader(this.prog, fs); this.gl.linkProgram(this.prog);
+
+                    if (!this.gl.getProgramParameter(this.prog, this.gl.LINK_STATUS)) { logger(3, "Link Error"); return; }
+
+                    this.gl.useProgram(this.prog);
+
+                    const buf = this.gl.createBuffer(); this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buf);
+                    this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), this.gl.STATIC_DRAW);
+                    const loc = this.gl.getAttribLocation(this.prog, 'p'); this.gl.enableVertexAttribArray(loc); this.gl.vertexAttribPointer(loc, 2, this.gl.FLOAT, false, 0, 0);
+
+                    this.tex = this.gl.createTexture(); this.gl.bindTexture(this.gl.TEXTURE_2D, this.tex);
+                    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+                    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+                    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
+                    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
+                }
+                update(cfg) { Object.assign(this.cfg, cfg); if(this.active) this.compile(); }
+                stop() { this.active = false; cancelAnimationFrame(this.raf); this.canvas.style.display = 'none'; logger(1, "Upscaler fermato"); }
+                loop() {
+                    if(!this.active) return;
+                    this.raf = requestAnimationFrame(() => this.loop());
+                    if(this.video.paused || this.video.ended || !this.video.videoWidth) return;
+
+                    let w, h;
+                    if(this.cfg.res === 'native') { w = window.innerWidth; h = window.innerHeight; }
+                    else if(this.cfg.res === '1080') { w=1920; h=1080; }
+                    else if(this.cfg.res === '2160') { w=3840; h=2160; }
+                    else { w=7680; h=4320; }
+
+                    if(w > this.maxTexSize) { w = this.maxTexSize; h = (w / (this.video.videoWidth/this.video.videoHeight)); }
+
+                    if(this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width=w; this.canvas.height=h; this.gl.viewport(0,0,w,h); }
+
+                    try {
+                        this.gl.activeTexture(this.gl.TEXTURE0); this.gl.bindTexture(this.gl.TEXTURE_2D, this.tex);
+                        this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, this.video);
+
+                        this.gl.uniform1i(this.gl.getUniformLocation(this.prog, 't'), 0);
+                        this.gl.uniform2f(this.gl.getUniformLocation(this.prog, 'r'), this.video.videoWidth, this.video.videoHeight);
+                        // Reverted to Uniform for Radius (works with fixed loop)
+                        // this.gl.uniform1f(this.gl.getUniformLocation(this.prog, 'rad'), this.cfg.radius); // Radius is CONST now
+                        this.gl.uniform1f(this.gl.getUniformLocation(this.prog, 'sharp'), this.cfg.sharp);
+
+                        this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
+
+                        const now = performance.now(); this.frames++;
+                        if(now - this.lastT >= 1000) { this.fps = this.frames; this.frames=0; this.lastT=now; document.getElementById('up_stat').innerText = this.fps + " FPS / " + w + "x" + h; }
+                    } catch(e) {
+                        this.stop(); logger(3, "GPU Error: " + e); document.getElementById('up_stat').innerText = "GPU ERROR - OFF";
+                        document.getElementById('up_chk').checked = false;
+                    }
+                }
+            }
+
+            // --- Main Application Logic ---
             const v = document.getElementById('p'), vComp = document.getElementById('v_comp');
             const panel = document.getElementById('panel'), gear = document.getElementById('gear'), gridLayer = document.getElementById('grid_layer'), mCanvas = document.getElementById('matrix_layer'), mCtx = mCanvas.getContext('2d', {alpha: true});
             const b_prev = document.getElementById('b_prev'), b_next = document.getElementById('b_next'), fb = document.getElementById('feedback');
@@ -316,6 +548,10 @@
             const hiddenCanvas = document.createElement('canvas'); const hCtx = hiddenCanvas.getContext('2d', {willReadFrequently:true});
             let ac, src, gain, delayNode, idleTimer, eqFilters = [];
             const storeKey = 'uvs_pos_' + encodeURIComponent("${u}").substring(0, 50);
+
+            // WebGL Canvas
+            const upCanvas = document.getElementById('up_canvas');
+            const upscaler = new WebGLUpscaler(v, upCanvas);
 
             let lastFPSUpdate = performance.now();
             let lastFrameCount = 0;
@@ -326,8 +562,8 @@
             } else { v.src = vComp.src = "${u}"; }
 
             const player = new Plyr(v, { autoplay:1, controls:['play-large','play','progress','current-time','mute','volume','settings','pip','fullscreen'], settings:['quality','speed','loop'], fullscreen: { container: '#wrapper' } });
-            v.onplay = () => { vComp.play(); };
-            v.onpause = () => { vComp.pause(); };
+            v.onplay = () => { vComp.play(); logger(2, "Video playing"); };
+            v.onpause = () => { vComp.pause(); logger(2, "Video paused"); };
             v.onseeking = () => { vComp.currentTime = v.currentTime; };
             v.onseeked = () => { vComp.currentTime = v.currentTime; };
             setInterval(() => { if(!v.paused && Math.abs(v.currentTime - vComp.currentTime) > 0.25) vComp.currentTime = v.currentTime; }, 500);
@@ -341,21 +577,55 @@
                 vib: document.getElementById('vib'), ar: document.getElementById('ar_sel'),
                 sh: document.getElementById('us_sel'), vol: document.getElementById('vol'), sync: document.getElementById('sync'), night: document.getElementById('night_chk'),
                 res: document.getElementById('grid_res'), matrix: document.getElementById('matrix_chk'), showGrid: document.getElementById('grid_vis_chk'),
-                eq_b: document.getElementById('eq_b'), eq_lb: document.getElementById('eq_lb'), eq_m: document.getElementById('eq_m'), eq_mh: document.getElementById('eq_mh'), eq_h: document.getElementById('eq_h')
+                eq_b: document.getElementById('eq_b'), eq_lb: document.getElementById('eq_lb'), eq_m: document.getElementById('eq_m'), eq_mh: document.getElementById('eq_mh'), eq_h: document.getElementById('eq_h'),
+                // Upscale
+                up_chk: document.getElementById('up_chk'), up_preset: document.getElementById('up_preset'), up_res: document.getElementById('up_res'),
+                up_algo: document.getElementById('up_algo'), up_rad: document.getElementById('up_rad'), up_sharp: document.getElementById('up_sharp')
             };
+
+            // --- UPSCALER LOGIC ---
+            document.getElementById('toggle_up').onclick = () => { document.getElementById('sec-up').classList.toggle('open'); };
+
+            const applyUpPreset = () => {
+                const p = inputs.up_preset.value;
+                if(p === 'perf') { inputs.up_algo.value = 'bicubic'; inputs.up_rad.value = 1; inputs.up_sharp.value = 0; }
+                else if(p === 'bal') { inputs.up_algo.value = 'lanczos2'; inputs.up_rad.value = 2; inputs.up_sharp.value = 0; }
+                else if(p === 'qual') { inputs.up_algo.value = 'lanczos3'; inputs.up_rad.value = 3; inputs.up_sharp.value = 0.2; }
+
+                ['up_rad','up_sharp'].forEach(k => document.getElementById('lbl_'+k).innerText = inputs[k].value);
+                updUpscaler();
+            };
+            inputs.up_preset.onchange = applyUpPreset;
+
+            const updUpscaler = () => {
+                if(inputs.up_chk.checked) {
+                    upscaler.init();
+                    upscaler.update({
+                        res: inputs.up_res.value, algo: inputs.up_algo.value,
+                        radius: parseFloat(inputs.up_rad.value), sharp: parseFloat(inputs.up_sharp.value)
+                    });
+                    logger(2, "Upscaler attivo: " + inputs.up_algo.value);
+                } else {
+                    upscaler.stop();
+                    document.getElementById('up_stat').innerText = "OFF";
+                }
+            };
+
+            [inputs.up_chk, inputs.up_res, inputs.up_algo, inputs.up_rad, inputs.up_sharp].forEach(i => i.addEventListener('input', updUpscaler));
+            inputs.up_rad.addEventListener('input', e => document.getElementById('lbl_up_rad').innerText = e.target.value);
+            inputs.up_sharp.addEventListener('input', e => document.getElementById('lbl_up_sharp').innerText = e.target.value);
+
+            // --- END UPSCALER LOGIC ---
 
             // Initial Red Dots Update
             function updateDots(t, minVal, maxVal) {
                 const parent = t.parentNode;
                 const minDot = parent.querySelector('.d-min');
                 const maxDot = parent.querySelector('.d-max');
-
                 const range = parseFloat(t.getAttribute('max')) - parseFloat(t.getAttribute('min'));
                 const minOffset = ((minVal - parseFloat(t.getAttribute('min'))) / range) * 100;
                 const maxOffset = ((maxVal - parseFloat(t.getAttribute('min'))) / range) * 100;
-
-                minDot.style.left = minOffset + '%';
-                maxDot.style.left = maxOffset + '%';
+                minDot.style.left = minOffset + '%'; maxDot.style.left = maxOffset + '%';
             }
 
             document.querySelectorAll('.lim').forEach(i => {
@@ -363,18 +633,10 @@
                     const t = document.getElementById(i.dataset.id);
                     let minV = parseFloat(document.querySelector('.lim.min[data-id="'+i.dataset.id+'"]').value);
                     let maxV = parseFloat(document.querySelector('.lim.max[data-id="'+i.dataset.id+'"]').value);
-
-                    if(i.classList.contains('min')) {
-                        t.min = i.value;
-                        if(parseFloat(t.value) < parseFloat(i.value)) t.value = i.value;
-                    } else {
-                        t.max = i.value;
-                        if(parseFloat(t.value) > parseFloat(i.value)) t.value = i.value;
-                    }
-                    updateDots(t, minV, maxV);
-                    upd(false);
+                    if(i.classList.contains('min')) { t.min = i.value; if(parseFloat(t.value) < parseFloat(i.value)) t.value = i.value; }
+                    else { t.max = i.value; if(parseFloat(t.value) > parseFloat(i.value)) t.value = i.value; }
+                    updateDots(t, minV, maxV); upd(false);
                 };
-                // Init dots on load
                 const t = document.getElementById(i.dataset.id);
                 if(t) {
                    let minV = parseFloat(document.querySelector('.lim.min[data-id="'+i.dataset.id+'"]').value);
@@ -390,7 +652,8 @@
                     let lastNode = src;
                     eqFilters = freqs.map((f, i) => { const filter = ac.createBiquadFilter(); filter.type = types[i]; filter.frequency.value = f; filter.Q.value = 1; filter.gain.value = 0; lastNode.connect(filter); lastNode = filter; return filter; });
                     delayNode = ac.createDelay(5.0); gain = ac.createGain(); lastNode.connect(delayNode); delayNode.connect(gain); gain.connect(ac.destination);
-                } catch(e) {}
+                    logger(1, "AudioContext initialized");
+                } catch(e) { logger(3, "Audio init error: " + e); }
             }
             v.addEventListener('play', () => { initAudio(); if(ac && ac.state==='suspended') ac.resume(); });
 
@@ -424,7 +687,7 @@
                     finalTop = (v.clientHeight - finalH) / 2; finalLeft = (v.clientWidth - finalW) / 2;
                 }
 
-                [gridLayer, mCanvas].forEach(el => {
+                [gridLayer, mCanvas, upCanvas].forEach(el => {
                     el.style.width = finalW + 'px'; el.style.height = finalH + 'px'; el.style.left = finalLeft + 'px'; el.style.top = finalTop + 'px';
                 });
             }
@@ -558,6 +821,9 @@
                 v.style.transform = transformVal;
                 gridLayer.style.transform = transformVal;
                 mCanvas.style.transform = transformVal;
+                // Upscale canvas transform
+                upCanvas.style.transform = transformVal;
+
                 if(!isAuto) syncOverlays();
 
                 const sha = (parseFloat(inputs.sha.value) - 1) * 45;
@@ -568,7 +834,18 @@
                 let f = "brightness("+inputs.bri.value+") contrast("+inputs.con.value+") saturate("+inputs.sat.value+") contrast("+(1 + (sha/100))+") brightness("+(1 - (hig/200))+") hue-rotate("+(gam/5)+"deg)";
                 if(vib > 0) f += " saturate("+(1 + (vib/100))+")";
                 if(inputs.sh.value !== 'none') f += " url(#"+inputs.sh.value+")";
-                v.style.filter = f;
+
+                // If upscaling is ON, apply filter to CANVAS, else to VIDEO
+                if(inputs.up_chk.checked) {
+                    v.style.filter = 'none';
+                    v.style.opacity = '0'; // Hide original video
+                    upCanvas.style.display = 'block';
+                    upCanvas.style.filter = f;
+                } else {
+                    v.style.filter = f;
+                    v.style.opacity = '1';
+                    upCanvas.style.display = 'none';
+                }
 
                 ['bri','sha','gam','hig','con','sat','vib'].forEach(k => document.getElementById('lbl_'+k).innerText = Math.round(inputs[k].value * 100) + '%');
                 if(gain) gain.gain.value = inputs.vol.value; document.getElementById('lbl_vol').innerText = Math.round(inputs.vol.value*100)+'%';
@@ -638,6 +915,11 @@
                     hdr: inputs.hdr.value, preset: inputs.preset.value, lv: inputs.lv.value,
                     ar: inputs.ar.value, sh: inputs.sh.value, night: inputs.night.checked,
                     grid: inputs.res.value, matrix: inputs.matrix.checked,
+                    // Upscale config
+                    upscale: {
+                        on: inputs.up_chk.checked, preset: inputs.up_preset.value, res: inputs.up_res.value,
+                        algo: inputs.up_algo.value, rad: inputs.up_rad.value, sharp: inputs.up_sharp.value
+                    },
                     limits: {}
                 };
                 document.querySelectorAll('.lim').forEach(l => {
@@ -663,6 +945,17 @@
                         if(c.grid) inputs.res.value = c.grid;
                         inputs.matrix.checked = !!c.matrix;
 
+                        // Load Upscale
+                        if(c.upscale) {
+                            inputs.up_chk.checked = c.upscale.on;
+                            inputs.up_preset.value = c.upscale.preset;
+                            inputs.up_res.value = c.upscale.res;
+                            inputs.up_algo.value = c.upscale.algo;
+                            inputs.up_rad.value = c.upscale.rad;
+                            inputs.up_sharp.value = c.upscale.sharp;
+                            updUpscaler();
+                        }
+
                         if(c.limits) {
                             Object.keys(c.limits).forEach(k => {
                                 const l = c.limits[k];
@@ -687,6 +980,9 @@
                 gridLayer.style.display = 'none'; mCanvas.style.display = 'none';
                 inputs.night.checked = false; ['bri','sha','gam','hig','con','sat','vib','vol'].forEach(k => inputs[k].value = 1); ['eq_b', 'eq_lb', 'eq_m', 'eq_mh', 'eq_h'].forEach(k => inputs[k].value = 0);
                 inputs.sync.value = 0;
+                // Reset Upscale
+                inputs.up_chk.checked = false; inputs.up_preset.value = 'bal'; inputs.up_res.value = 'native'; updUpscaler();
+
                 document.querySelectorAll('.lim.min').forEach(l => l.value = l.defaultValue);
                 document.querySelectorAll('.lim.max').forEach(l => l.value = l.defaultValue);
                 document.querySelectorAll('input[type=range]').forEach(r => {
